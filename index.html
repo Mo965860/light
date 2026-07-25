@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>النظام الشامل</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --accent: #c8a45a; --accent2: #e8c47a; --text: #e6edf3; --muted: #8b949e; --success: #3fb950; --danger: #f85149; }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; }
+  body { background: var(--bg); color: var(--text); min-height: 100vh; }
+  #lock-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: 100%; max-width: 100%; text-align: center; margin-bottom: 20px; }
+  input, select, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; }
+  input:focus, select:focus { border-color: var(--accent); outline: none; }
+  button { background: var(--accent); color: #000; font-weight: bold; border: none; cursor: pointer; margin-top: 16px; }
+  button:hover { background: var(--accent2); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  #app { display: none; padding: 20px; max-width: 1200px; margin: 0 auto; }
+  .nav { display: flex; gap: 10px; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px; overflow-x: auto; }
+  .nav-btn { background: transparent; color: var(--muted); border: none; font-size: 16px; padding: 10px; margin: 0; cursor: pointer; white-space: nowrap; }
+  .nav-btn.active { color: var(--accent); border-bottom: 2px solid var(--accent); border-radius: 0; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .grid { display: grid; gap: 15px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .grid-2 { display: grid; gap: 15px; grid-template-columns: 1fr 1fr; }
+  .row-item { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr; gap: 10px; align-items: end; background: var(--surface); padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; text-align: right; }
+  th, td { border: 1px solid var(--border); padding: 8px; }
+  th { background: #1f2937; color: var(--accent); }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; background: var(--success); color: #fff; border-radius: 20px; display: none; z-index: 1000; font-weight: bold; }
+  .toast.error { background: var(--danger); }
+  .loading { position: fixed; inset: 0; background: rgba(13,17,23,0.8); display: flex; justify-content: center; align-items: center; z-index: 2000; display: none; color: var(--accent); font-size: 20px; font-weight: bold; }
+  .stat-box { background: #1f2937; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid var(--border); }
+  .stat-val { font-size: 20px; font-weight: bold; color: var(--accent); margin-top: 5px; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 500; }
+  .modal.open { display: flex; }
+  h4 { color: var(--accent2); margin-top: 20px; }
+  h5 { margin-bottom: 4px; font-size: 13px; }
+  #topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+  .btn-ghost-danger { width: auto; margin: 0; padding: 8px 14px; background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+  .btn-ghost { width: auto; margin: 0; padding: 8px 14px; background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .btn-group button { width: auto; margin: 0; padding: 8px 10px; font-size: 12px; flex: 1; min-width: 70px; white-space: nowrap; }
+  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } .row-item { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .row-item { grid-template-columns: 1fr; } .btn-group { flex-direction: column; } .btn-group button { width: 100%; } }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">جاري معالجة البيانات...</div>
+<div class="toast" id="toast"></div>
+
+<div id="lock-screen">
+  <div class="card" style="max-width: 450px;">
+    <h2 style="color:var(--accent); margin-bottom: 10px;">تسجيل الدخول</h2>
+    <form id="login-form" onsubmit="event.preventDefault(); doLogin();" autocomplete="on">
+      <input type="email" id="login-email" name="email" placeholder="البريد الإلكتروني" autocomplete="username" required>
+      <input type="password" id="login-password" name="password" placeholder="كلمة المرور..." autocomplete="current-password" required>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:12px; font-size:13px; color:var(--muted); text-align:right; width:auto;">
+        <input type="checkbox" id="remember-email" style="width:auto; margin:0;" checked>
+        تذكّر بريدي الإلكتروني على هذا الجهاز
+      </label>
+      <button type="submit">دخول للنظام</button>
+    </form>
+  </div>
+</div>
+
+<div id="app">
+  <div id="topbar">
+    <span id="current-user-label" style="color:var(--muted); font-size:13px;"></span>
+    <button class="btn-ghost-danger" onclick="logout()">🚪 تسجيل خروج</button>
+  </div>
+  <div class="nav" id="nav-menu">
+    <button class="nav-btn active" onclick="switchTab('sales', this)">🧾 المبيعات</button>
+    <button class="nav-btn" onclick="switchTab('stock', this)">🏭 المخازن والتوريد</button>
+    <button class="nav-btn" onclick="switchTab('returns', this)">↩️ المرتجع</button>
+    <button class="nav-btn" onclick="switchTab('clients', this)">👥 بحث ومديونية العملاء</button>
+    <button class="nav-btn" onclick="switchTab('today', this)">📅 ما تم والتحليلات</button>
+    <button class="nav-btn" onclick="switchTab('analytics', this)">📊 تحليلات الشهر والسنة</button>
+  </div>
+
+  <div id="tab-sales" class="panel active">
+    <div class="card">
+      <h3 style="color:var(--accent)">تسجيل فاتورة بيع جديدة</h3>
+      <div class="grid" style="margin-top:15px; margin-bottom:15px;">
+        <div><label>المخزن المنصرف منه *</label><select id="s-warehouse"></select></div>
+        <div>
+          <label>اسم العميل *</label>
+          <input type="text" id="s-client" placeholder="اكتب اسم العميل" list="clients-datalist">
+          <datalist id="clients-datalist"></datalist>
+          <div id="client-name-warning" style="display:none; margin-top:8px; padding:10px; border:1px solid var(--accent); border-radius:8px; background:#2a2110; color:var(--accent2); font-size:12px; text-align:right; line-height:1.7;"></div>
+        </div>
+        <div><label>المحافظة *</label><select id="s-gov">
+          <option value="">اختر</option>
+          <option>القاهرة</option><option>الجيزة</option><option>الإسكندرية</option><option>الدقهلية</option>
+          <option>البحر الأحمر</option><option>البحيرة</option><option>الفيوم</option><option>الغربية</option>
+          <option>الإسماعيلية</option><option>المنوفية</option><option>المنيا</option><option>القليوبية</option>
+          <option>الوادي الجديد</option><option>السويس</option><option>أسوان</option><option>أسيوط</option>
+          <option>بني سويف</option><option>بورسعيد</option><option>دمياط</option><option>الشرقية</option>
+          <option>جنوب سيناء</option><option>كفر الشيخ</option><option>مطروح</option><option>الأقصر</option>
+          <option>قنا</option><option>شمال سيناء</option><option>سوهاج</option>
+        </select></div>
+        <div><label>رقم الهاتف</label><input type="text" id="s-phone"></div>
+        <div><label>المندوب</label><input type="text" id="s-agent" list="agents-datalist"><datalist id="agents-datalist"></datalist></div>
+      </div>
+      <div id="products-container"></div>
+      <button onclick="addProductRow()" style="background:transparent; border:1px solid var(--accent); color:var(--accent); width:auto; padding:8px 15px;">+ صنف جديد للفاتورة</button>
+      <div class="grid" style="margin-top:20px; border-top:1px solid var(--border); padding-top:15px;">
+        <div><label>إجمالي المطلوب</label><input type="number" id="s-total" readonly style="color:var(--accent2); font-weight:bold;"></div>
+        <div><label>المدفوع نقداً</label><input type="number" id="s-paid" value="0" oninput="calcTotals()"></div>
+        <div><label>مديونية هذه الفاتورة</label><input type="number" id="s-debt" readonly style="color:var(--danger); font-weight:bold;"></div>
+      </div>
+      <button onclick="submitSales()">📤 ترحيل الفاتورة</button>
+    </div>
+
+    <div class="card" id="admin-sales-search">
+      <h3 style="color:var(--accent)"> الاستعلام عن المبيعات وإدارة الفواتير</h3>
+      <div class="grid">
+        <div><label>اختر التاريخ</label><input type="date" id="search-date"></div>
+        <div style="display:flex; align-items:end;"><button onclick="searchDate()">بحث</button></div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>الوقت</th><th>المخزن</th><th>العميل</th><th>الأصناف</th><th>الإجمالي</th><th>مدفوع</th><th>مديونية</th><th>إجراءات</th></tr></thead>
+          <tbody id="date-results"><tr><td colspan="8" style="text-align:center">اختر تاريخاً للبحث</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-stock" class="panel">
+    <!-- تم تحويل التصميم ليصبح بالعرض (أعمدة جانبية) لتقليل الطول وتسهيل التمرير -->
+    <div class="grid-2" style="align-items: start;">
+      
+      <!-- العمود الأيمن: نموذج التوريد -->
+      <div class="card">
+        <h3 style="color:var(--accent); margin-bottom:15px;">📦 توريد وإضافة للمخازن</h3>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
+          <div><label>المخزن *</label><select id="inv-wh"></select></div>
+          <div><label>المنتج *</label><select id="inv-prod"></select></div>
+          <div><label>كرتونة</label><input type="number" id="inv-c" value="0" min="0"></div>
+          <div><label>قطعة</label><input type="number" id="inv-p" value="0" min="0"></div>
+          <div><label>حد التنبيه</label><input type="number" id="inv-m" value="10" min="0"></div>
+        </div>
+        <button onclick="submitInv()" style="margin-top:15px; width:100%;">📤 حفظ التوريد</button>
+        
+        <!-- منطقة التراجع عن آخر عملية -->
+        <div id="last-inv-addition-container" style="margin-top: 15px;"></div>
+
+        <h4 style="color:var(--accent2); margin-top:20px; margin-bottom:10px; font-size:14px;">إدارة المخازن والمنتجات</h4>
+        <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+          <button onclick="openModal('modal-wh')" style="background:transparent; border:1px solid var(--accent); color:var(--accent); margin:0;">+ مخزن جديد</button>
+          <button onclick="openModal('modal-prod')" style="background:transparent; border:1px solid var(--accent); color:var(--accent); margin:0;">+ منتج جديد</button>
+          <button onclick="openModal('modal-delwh')" class="btn-danger" style="margin:0;">🗑️ حذف مخزن</button>
+          <button onclick="openModal('modal-delprod')" class="btn-danger" style="margin:0;">🗑️ حذف منتج</button>
+        </div>
+      </div>
+
+      <!-- العمود الأيسر: البحث عن الرصيد -->
+      <div class="card">
+        <h3 style="color:var(--accent); margin-bottom:15px;">🔍 البحث عن رصيد منتج</h3>
+        <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div><label>المخزن</label><select id="stk-wh"></select></div>
+          <div><label>المنتج</label><select id="stk-prod"></select></div>
+        </div>
+        <button onclick="searchStock()" style="margin-top:10px; width:100%;">بحث عن الرصيد</button>
+        
+        <div id="stk-result" style="display:none; margin-top:15px;">
+          <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+            <div class="stat-box" style="padding:10px;">الكرتونة<div class="stat-val" id="stk-carton" style="font-size:18px;">0</div></div>
+            <div class="stat-box" style="padding:10px;">القطعة<div class="stat-val" id="stk-piece" style="font-size:18px;">0</div></div>
+            <div class="stat-box" style="padding:10px;">حد التنبيه<div class="stat-val" id="stk-min" style="font-size:18px;">0</div></div>
+          </div>
+          <div class="card" id="stk-updated" style="text-align:center; max-width:100%; margin-top:15px; background: var(--bg); font-size:13px; color: var(--muted);">-</div>
+
+          <div id="stk-edit-box" style="display:none; margin-top:15px; border-top:1px solid var(--border); padding-top:15px;">
+            <h4 style="color:var(--accent2); margin-top:0; font-size:14px;">✏️ تعديل / حذف رصيد هذا الصنف في هذا المخزن</h4>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px;">
+              <div><label>كرتونة جديدة</label><input type="number" id="stk-edit-carton" min="0" value="0"></div>
+              <div><label>قطعة جديدة</label><input type="number" id="stk-edit-piece" min="0" value="0"></div>
+              <div><label>حد تنبيه جديد</label><input type="number" id="stk-edit-min" min="0" value="10"></div>
+            </div>
+            <div class="btn-group" style="margin-top:10px;">
+              <button onclick="updateStockQuantity()">💾 حفظ التعديل</button>
+              <button class="btn-danger" onclick="deleteStockItem()">🗑️ حذف الصنف من هذا المخزن فقط</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="tab-returns" class="panel">
+    <div class="card">
+      <h3 style="color:var(--accent)">↩️ نقل مرتجع بين المخازن</h3>
+      <p style="color:var(--muted); font-size:13px; margin-bottom:10px;">ملحوظة: سيتم خصم الكمية من المخزن المرسل وإضافتها للمخزن المستلم.</p>
+      <div class="grid-2">
+        <div><label>المخزن المرسل منه (خصم) *</label><select id="ret-wh-src"></select></div>
+        <div><label>المخزن المستلم (إضافة) *</label><select id="ret-wh-dest"></select></div>
+      </div>
+      <div class="grid-2" style="margin-top:10px;">
+        <div><label>المنتج *</label><select id="ret-prod"></select></div>
+        <div><label>حد التنبيه الجديد</label><input type="number" id="ret-m" value="10"></div>
+      </div>
+      <div class="grid-2" style="margin-top:10px;">
+        <div><label>كرتونة مرتجعة</label><input type="number" id="ret-c" value="0"></div>
+        <div><label>قطعة مرتجعة</label><input type="number" id="ret-p" value="0"></div>
+      </div>
+      <button class="btn-danger" onclick="submitReturn()">📤 تنفيذ نقل المرتجع</button>
+    </div>
+  </div>
+
+  <div id="tab-clients" class="panel">
+    <div class="card">
+      <div class="stat-box" style="margin-bottom: 20px; border: 2px solid var(--danger);">
+        <h4 style="margin:0; color:var(--danger);">إجمالي مديونيات جميع العملاء</h4>
+        <div class="stat-val" id="total-clients-debt" style="font-size: 28px; color: var(--danger);">0.00</div>
+      </div>
+      <h3 style="color:var(--accent)">🔍 بحث وتحليل بيانات العميل</h3>
+      <div class="grid">
+        <div><label>اكتب اسم العميل بدقة</label><input type="text" id="c-search-input"></div>
+        <div style="display:flex; align-items:end;"><button onclick="searchClient()">بحث شامل</button></div>
+      </div>
+      <div id="c-profile" style="display:none; margin-top:20px;">
+        <h4 id="c-name" style="margin-bottom:10px;"></h4>
+        <div class="grid">
+          <div class="stat-box">إجمالي المشتريات<div class="stat-val" id="c-total-spend">0</div></div>
+          <div class="stat-box">المديونية الكلية<div class="stat-val" id="c-debt" style="color:var(--danger)">0</div></div>
+          <div class="stat-box">أول تعامل معنا<div class="stat-val" id="c-first-date" style="font-size:16px;">-</div></div>
+          <div class="stat-box">أكثر منتج اشتراه<div class="stat-val" id="c-max-p" style="font-size:16px;">-</div></div>
+          <div class="stat-box">أقل منتج اشتراه<div class="stat-val" id="c-min-p" style="font-size:16px;">-</div></div>
+        </div>
+        <h4> آخر فاتورة للعميل</h4>
+        <div class="card" id="c-last-invoice" style="text-align:right; max-width:100%;">-</div>
+
+        <h4>💰 إدارة مديونية العميل</h4>
+        <div class="card" style="max-width:100%;">
+          <div class="grid-2">
+            <div>
+              <label>تسجيل دفعة جديدة (تُخصم تلقائياً من المديونية)</label>
+              <input type="number" id="c-payment-amount" min="0" value="0">
+              <button onclick="registerClientPayment()">✅ تسجيل الدفعة</button>
+            </div>
+            <div>
+              <label>تعديل المديونية يدوياً (تحديد قيمة جديدة كاملة)</label>
+              <input type="number" id="c-debt-manual" min="0" value="0">
+              <button class="btn-danger" onclick="editClientDebtManual()">✏️ حفظ التعديل اليدوي</button>
+            </div>
+          </div>
+          <button class="btn-ghost-danger" style="width:100%; margin-top:15px;" onclick="deleteClient(currentClientSearched, currentClientDebt)">🗑️ حذف هذا العميل نهائياً</button>
+        </div>
+      </div>
+      <hr style="border-color:var(--border); margin:20px 0;">
+      <h3 style="color:var(--accent)">سجل كل العملاء</h3>
+      <button onclick="openModal('modal-cust')" style="width:auto; padding:5px 15px;">+ عميل جديد بافتتاحي</button>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>اسم العميل</th><th>أول تعامل</th><th>إجمالي المشتريات</th><th>المديونية</th><th>أكثر منتج اشتراه</th><th>إجراءات</th></tr></thead>
+          <tbody id="clients-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-today" class="panel">
+    <div class="card">
+      <h3 style="color:var(--accent)">📊 عمليات اليوم والتحليلات</h3>
+      <div class="grid" style="margin-bottom:20px; background: var(--bg); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+        <div><label>اختر التاريخ للعرض</label><input type="date" id="td-date-picker" onchange="buildToday()"></div>
+        <div style="display:flex; align-items:end;"><button onclick="resetTodayToNow()" style="margin-top:8px;">عرض اليوم الحالي</button></div>
+      </div>
+      <div class="grid" style="margin-bottom:20px;">
+        <div class="stat-box">قيمة مبيعات اليوم<div class="stat-val" id="td-sales-val">0</div></div>
+        <div class="stat-box">عدد فواتير اليوم<div class="stat-val" id="td-sales-cnt">0</div></div>
+        <div class="stat-box">إجمالي كمية المرتجعات<div class="stat-val" id="td-ret-cnt" style="color:var(--danger)">0</div></div>
+      </div>
+      <h4>📋 كل العمليات اللي تمت في هذا اليوم (بيع + مرتجع)</h4>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>الوقت</th><th>النوع</th><th>التفاصيل</th><th>القيمة</th></tr></thead>
+          <tbody id="td-ops-tbody"><tr><td colspan="4" style="text-align:center">لا يوجد عمليات بعد</td></tr></tbody>
+        </table>
+      </div>
+      <h4>📦 كمية كل منتج تم بيعه في هذا اليوم</h4>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>المنتج</th><th>الكمية المباعة</th><th>التاريخ</th></tr></thead>
+          <tbody id="td-products-tbody"><tr><td colspan="3" style="text-align:center">لا يوجد مبيعات</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-analytics" class="panel">
+    <div class="card">
+      <h3 style="color:var(--accent)">📊 تحليل بيانات الشهر والسنة</h3>
+      <div class="grid">
+        <div><label>السنة</label><select id="an-year"></select></div>
+        <div><label>الشهر (اختياري)</label><select id="an-month">
+          <option value="">كل السنة</option>
+          <option value="1">يناير</option><option value="2">فبراير</option><option value="3">مارس</option><option value="4">أبريل</option>
+          <option value="5">مايو</option><option value="6">يونيو</option><option value="7">يوليو</option><option value="8">أغسطس</option>
+          <option value="9">سبتمبر</option><option value="10">أكتوبر</option><option value="11">نوفمبر</option><option value="12">ديسمبر</option>
+        </select></div>
+        <div style="display:flex; align-items:end;"><button onclick="buildAnalytics()">تحليل</button></div>
+      </div>
+      <div id="an-empty" style="text-align:center; color:var(--muted); margin-top:20px;">اختر سنة واضغط تحليل</div>
+      <div id="an-results" style="display:none; margin-top:10px;">
+        <div class="grid">
+          <div class="stat-box">إجمالي مبيعات الفترة<div class="stat-val" id="an-total-sales">0</div></div>
+          <div class="stat-box">عدد الفواتير<div class="stat-val" id="an-total-invoices">0</div></div>
+        </div>
+        <h4>🏆 المنتجات (بالكمية المباعة)</h4>
+        <div class="grid-2">
+          <div><h5 style="color:var(--success)">الأكثر مبيعاً</h5><table><thead><tr><th>#</th><th>المنتج</th><th>الكمية</th></tr></thead><tbody id="an-products-top"></tbody></table></div>
+          <div><h5 style="color:var(--danger)">الأقل مبيعاً</h5><table><thead><tr><th>#</th><th>المنتج</th><th>الكمية</th></tr></thead><tbody id="an-products-bottom"></tbody></table></div>
+        </div>
+        <h4>🗺️ المحافظات (بالقيمة)</h4>
+        <div class="grid-2">
+          <div><h5 style="color:var(--success)">الأكثر شراءً</h5><table><thead><tr><th>#</th><th>المحافظة</th><th>القيمة</th></tr></thead><tbody id="an-gov-top"></tbody></table></div>
+          <div><h5 style="color:var(--danger)">الأقل شراءً</h5><table><thead><tr><th>#</th><th>المحافظة</th><th>القيمة</th></tr></thead><tbody id="an-gov-bottom"></tbody></table></div>
+        </div>
+        <h4>📅 الأشهر (بالقيمة) — على مستوى السنة كلها</h4>
+        <div class="grid-2">
+          <div><h5 style="color:var(--success)">الأكثر بيعاً</h5><table><thead><tr><th>#</th><th>الشهر</th><th>القيمة</th></tr></thead><tbody id="an-month-top"></tbody></table></div>
+          <div><h5 style="color:var(--danger)">الأقل بيعاً</h5><table><thead><tr><th>#</th><th>الشهر</th><th>القيمة</th></tr></thead><tbody id="an-month-bottom"></tbody></table></div>
+        </div>
+        <h4>👥 العملاء (بالقيمة)</h4>
+        <div class="grid-2">
+          <div><h5 style="color:var(--success)">الأكثر شراءً</h5><table><thead><tr><th>#</th><th>العميل</th><th>القيمة</th></tr></thead><tbody id="an-client-top"></tbody></table></div>
+          <div><h5 style="color:var(--danger)">الأقل شراءً</h5><table><thead><tr><th>#</th><th>العميل</th><th>القيمة</th></tr></thead><tbody id="an-client-bottom"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-wh" onclick="if(event.target===this)closeModal('modal-wh')"><div class="card" style="max-width:450px;"><h3>مخزن جديد</h3><input type="text" id="new-wh" placeholder="اسم المخزن"><button onclick="saveWh()">حفظ</button></div></div>
+<div class="modal" id="modal-prod" onclick="if(event.target===this)closeModal('modal-prod')"><div class="card" style="max-width:450px;"><h3>منتج جديد</h3><input type="text" id="new-pr" placeholder="اسم المنتج"><input type="number" id="new-pr-c" placeholder="كرتونة مبدئية"><input type="number" id="new-pr-p" placeholder="قطعة مبدئية"><button onclick="saveProd()">حفظ</button></div></div>
+<div class="modal" id="modal-cust" onclick="if(event.target===this)closeModal('modal-cust')"><div class="card" style="max-width:450px;"><h3>عميل جديد</h3><input type="text" id="new-cu" placeholder="اسم العميل"><input type="number" id="new-cu-d" placeholder="مديونية افتتاحية"><button onclick="saveCust()">حفظ</button></div></div>
+<div class="modal" id="modal-delwh" onclick="if(event.target===this)closeModal('modal-delwh')"><div class="card" style="max-width:450px;"><h3 style="color:var(--danger)">🗑️ حذف مخزن</h3><p style="color:var(--muted); font-size:13px; margin:10px 0;">تحذير: هيتحذف المخزن وكل أرصدته. لا يمكن حذف المخزن الرئيسي.</p><select id="del-wh-select"></select><button class="btn-danger" onclick="deleteWarehouse()">تأكيد الحذف</button></div></div>
+<div class="modal" id="modal-delprod" onclick="if(event.target===this)closeModal('modal-delprod')"><div class="card" style="max-width:450px;"><h3 style="color:var(--danger)">🗑️ حذف منتج</h3><p style="color:var(--muted); font-size:13px; margin:10px 0;">تحذير: هيتحذف المنتج من كل المخازن نهائياً.</p><select id="del-pr-select"></select><button class="btn-danger" onclick="deleteProduct()">تأكيد الحذف</button></div></div>
+<div class="modal" id="modal-confirm"><div class="card" style="max-width:450px;"><h3 style="color:var(--danger)">⚠️ تأكيد الإجراء</h3><p id="confirm-message" style="margin:15px 0; line-height:1.7; color:var(--text);"></p><div class="grid-2"><button class="btn-danger" id="confirm-yes">نعم، تأكيد</button><button class="btn-ghost" id="confirm-no">إلغاء</button></div></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ============ إعداد الاتصال بـ Supabase ============ */
+const SUPABASE_URL = "https://pyasuocrcnsjwpcgzmon.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5YXN1b2NyY25zandwY2d6bW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1ODgyMTgsImV4cCI6MjA5OTE2NDIxOH0.SzmpGsL5M3y-nawEQI2JU_Rc7QBji3pK3fFW5OjoSW8";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true }
+});
+
+const MAIN_WH = "المخزن الرئيسي";
+let CURRENT_ROLE = "";
+let CURRENT_USER = null;
+let db = { role: "", warehouses: [], products: [], clients: [], sales: [], returns: [] };
+let rCnt = 0;
+let currentInvoiceGroups = [];
+let invoiceWindow = null;
+let lastInvAddition = null; // متغير لتتبع آخر عملية توريد للتراجع عنها
+
+/* ============ نافذة تأكيد موحّدة ============ */
+function confirmModal(message) {
+  return new Promise(resolve => {
+    document.getElementById('confirm-message').textContent = message;
+    const modal = document.getElementById('modal-confirm');
+    const yes = document.getElementById('confirm-yes');
+    const no = document.getElementById('confirm-no');
+    modal.classList.add('open');
+    const cleanup = (result) => { modal.classList.remove('open'); yes.onclick = null; no.onclick = null; resolve(result); };
+    yes.onclick = () => cleanup(true);
+    no.onclick = () => cleanup(false);
+  });
+}
+
+function showL() { document.getElementById('loading').style.display = 'flex'; }
+function hideL() { document.getElementById('loading').style.display = 'none'; }
+function toast(m, err=false) {
+  const t = document.getElementById('toast');
+  t.textContent = m; t.className = 'toast ' + (err ? 'error' : '');
+  t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 5000);
+}
+function errH(e) { hideL(); toast((e && e.message) || e, true); }
+function dateStr(d) { d = new Date(d); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+const ARABIC_MONTHS = ['', 'يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+function num_(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+function str_(v) { return v === null || v === undefined ? "" : v.toString().trim(); }
+
+/* ============ تسجيل الدخول ============ */
+async function doLogin() {
+  const email = str_(document.getElementById('login-email').value);
+  const password = document.getElementById('login-password').value;
+  const remember = document.getElementById('remember-email').checked;
+  if (!email || !password) return toast("أدخل البريد الإلكتروني وكلمة المرور", true);
+  showL();
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) throw new Error("بيانات الدخول غير صحيحة.");
+    if (remember) localStorage.setItem('remembered_email', email);
+    else localStorage.removeItem('remembered_email');
+    await establishSession(data.session);
+  } catch (e) { errH(e); }
+}
+
+async function establishSession(session) {
+  const { data: profile, error: pErr } = await sb.from('profiles').select('role, full_name').eq('id', session.user.id).maybeSingle();
+  if (pErr) throw pErr;
+  if (!profile || (profile.role !== 'admin' && profile.role !== 'agent')) {
+    await sb.auth.signOut();
+    throw new Error("هذا الحساب غير مفعّل الصلاحيات.");
+  }
+  CURRENT_ROLE = profile.role;
+  CURRENT_USER = session.user;
+  await loadInitialData();
+  document.getElementById('lock-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('current-user-label').textContent = `👤 ${profile.full_name || session.user.email} — ${profile.role === 'admin' ? 'مدير' : 'مندوب'}`;
+  if (CURRENT_ROLE === "agent") {
+    document.getElementById('nav-menu').style.display = 'none';
+    document.getElementById('admin-sales-search').style.display = 'none';
+  } else {
+    document.getElementById('nav-menu').style.display = 'flex';
+    document.getElementById('admin-sales-search').style.display = 'block';
+  }
+  refreshUI();
+  hideL();
+}
+
+async function logout() {
+  const ok = await confirmModal("هل تريد بالفعل تسجيل الخروج من النظام؟");
+  if (!ok) return;
+  showL();
+  await sb.auth.signOut();
+  location.reload();
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const savedEmail = localStorage.getItem('remembered_email');
+    if (savedEmail) document.getElementById('login-email').value = savedEmail;
+    else document.getElementById('remember-email').checked = false;
+  } catch (e) {}
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) { showL(); await establishSession(session); }
+  } catch (e) { hideL(); }
+});
+
+async function refreshDataOnly() {
+  showL();
+  try { await loadInitialData(); refreshUI(); hideL(); }
+  catch (e) { errH(e); }
+}
+
+async function loadInitialData() {
+  const { data: warehouses, error: whErr } = await sb.from('warehouses').select('*').order('id');
+  if (whErr) throw whErr;
+  const { data: mainInv, error: invErr } = await sb.from('inventory').select('product_name').eq('warehouse_name', MAIN_WH);
+  if (invErr) throw invErr;
+  const { data: clients, error: clErr } = await sb.from('clients').select('*').order('name');
+  if (clErr) throw clErr;
+  db.role = CURRENT_ROLE;
+  db.warehouses = warehouses || [];
+  db.products = (mainInv || []).map(r => r.product_name);
+  db.clients = (clients || []).map(c => ({ name: c.name, totalPurchases: num_(c.total_purchases), debt: num_(c.debt), firstDate: c.first_date }));
+  db.sales = []; db.returns = [];
+  if (CURRENT_ROLE === 'admin') {
+    const { data: sales, error: sErr } = await sb.from('sales').select('*').order('created_at', { ascending: false });
+    if (sErr) throw sErr;
+    db.sales = (sales || []).map(s => ({
+      id: s.id, timestamp: s.created_at, client: s.client_name, gov: s.governorate, phone: s.phone, agent: s.agent,
+      warehouse: s.warehouse_name, product: s.product_name, carton: num_(s.carton), piece: num_(s.piece),
+      price: num_(s.price), lineDue: num_(s.line_due), totalInvoice: num_(s.total_invoice), paid: num_(s.paid), invoiceDebt: num_(s.invoice_debt)
+    }));
+    const { data: returns, error: rErr } = await sb.from('returns_log').select('*').order('created_at', { ascending: false });
+    if (rErr) throw rErr;
+    db.returns = (returns || []).map(r => ({ timestamp: r.created_at, warehouse: r.warehouse_name, product: r.product_name, carton: num_(r.carton), piece: num_(r.piece) }));
+  }
+}
+
+function refreshUI() {
+  const whOpts = db.warehouses.map(w => `<option value="${w.name}">${w.name}</option>`).join('');
+  document.getElementById('s-warehouse').innerHTML = whOpts;
+  document.getElementById('inv-wh').innerHTML = whOpts;
+  document.getElementById('stk-wh').innerHTML = whOpts;
+  document.getElementById('del-wh-select').innerHTML = db.warehouses.filter(w => w.name !== MAIN_WH).map(w => `<option value="${w.name}">${w.name}</option>`).join('') || '<option value="">لا يوجد مخازن قابلة للحذف</option>';
+  document.getElementById('ret-wh-src').innerHTML = whOpts;
+  document.getElementById('ret-wh-dest').innerHTML = whOpts;
+  const prOpts = '<option value="">اختر</option>' + db.products.map(p => `<option>${p}</option>`).join('');
+  document.getElementById('inv-prod').innerHTML = prOpts;
+  document.getElementById('ret-prod').innerHTML = prOpts;
+  document.getElementById('stk-prod').innerHTML = prOpts;
+  document.getElementById('del-pr-select').innerHTML = db.products.map(p => `<option>${p}</option>`).join('') || '<option value="">لا يوجد منتجات</option>';
+  document.querySelectorAll('.pr-sel').forEach(el => { const v=el.value; el.innerHTML=prOpts; el.value=v; });
+  document.getElementById('clients-datalist').innerHTML = db.clients.map(c => `<option value="${c.name.replace(/"/g,'&quot;')}"></option>`).join('');
+  populateAgentsDatalist();
+  loadLastInvAddition(); // تحميل حالة التراجع إن وجدت
+  if (db.role === "admin") {
+    updateTotalDebt();
+    buildClientsTable();
+    buildToday();
+    populateYears();
+  }
+  if (rCnt === 0) addProductRow();
+}
+
+function switchTab(t, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + t).classList.add('active');
+  btn.classList.add('active');
+  if (t === 'clients') updateTotalDebt();
+  if (t === 'today') buildToday();
+}
+
+/* ============ فاتورة البيع ============ */
+function addProductRow() {
+  rCnt++;
+  const d = document.createElement('div');
+  d.className = 'row-item'; d.id = `r-${rCnt}`;
+  const prOpts = '<option value="">اختر</option>' + db.products.map(p => `<option>${p}</option>`).join('');
+  d.innerHTML = `
+    <div><label>المنتج</label><select id="pr-${rCnt}" class="pr-sel" onchange="calcTotals()">${prOpts}</select></div>
+    <div><label>كرتونة</label><input type="number" id="c-${rCnt}" value="0" min="0" oninput="calcTotals()"></div>
+    <div><label>قطعة</label><input type="number" id="p-${rCnt}" value="0" min="0" oninput="calcTotals()"></div>
+    <div><label>السعر</label><input type="number" id="prc-${rCnt}" value="0" min="0" oninput="calcTotals()"></div>
+    <div><label>الإجمالي</label><input type="number" id="tot-${rCnt}" readonly style="background:var(--bg)"></div>
+  `;
+  document.getElementById('products-container').appendChild(d);
+}
+
+function calcTotals() {
+  let all = 0;
+  document.querySelectorAll('.row-item').forEach(r => {
+    const id = r.id.split('-')[1];
+    const tot = (Number(document.getElementById(`c-${id}`).value) + Number(document.getElementById(`p-${id}`).value)) * Number(document.getElementById(`prc-${id}`).value);
+    document.getElementById(`tot-${id}`).value = tot; all += tot;
+  });
+  document.getElementById('s-total').value = all;
+  document.getElementById('s-debt').value = all - Number(document.getElementById('s-paid').value);
+}
+
+async function submitSales() {
+  const warehouse = document.getElementById('s-warehouse').value;
+  const client = str_(document.getElementById('s-client').value);
+  const gov = document.getElementById('s-gov').value;
+  const phone = document.getElementById('s-phone').value;
+  const agent = document.getElementById('s-agent').value;
+  const paid = num_(document.getElementById('s-paid').value);
+  const items = [];
+  document.querySelectorAll('.row-item').forEach(r => {
+    const id = r.id.split('-')[1];
+    const pr = document.getElementById(`pr-${id}`).value;
+    const c = num_(document.getElementById(`c-${id}`).value);
+    const p = num_(document.getElementById(`p-${id}`).value);
+    const price = num_(document.getElementById(`prc-${id}`).value);
+    if (pr && (c > 0 || p > 0)) items.push({ product: pr, carton: c, piece: p, price });
+  });
+  if (!client || items.length === 0) return toast("أكمل بيانات العميل وأضف منتجاً بكمية", true);
+  showL();
+  try {
+    const { error } = await sb.rpc('rpc_process_sale', {
+      p_warehouse: warehouse, p_client: client, p_gov: gov, p_phone: phone, p_agent: agent,
+      p_paid: paid, p_items: items
+    });
+    if (error) throw new Error(error.message || "فشل تنفيذ عملية البيع");
+    saveStoredAgent(agent);
+    toast("تم البيع بنجاح");
+    document.getElementById('products-container').innerHTML = '';
+    rCnt = 0;
+    document.getElementById('s-client').value = '';
+    document.getElementById('s-paid').value = '0';
+    hideClientWarning();
+    calcTotals();
+    await refreshDataOnly();
+  } catch (e) { errH(e); }
+}
+
+/* ============ إدارة المخازن ============ */
+async function searchStock() {
+  const warehouse = document.getElementById('stk-wh').value;
+  const product = document.getElementById('stk-prod').value;
+  if (!warehouse || !product) return toast("اختر المخزن والمنتج", true);
+  showL();
+  try {
+    const { data, error } = await sb.from('inventory').select('*').eq('warehouse_name', warehouse).eq('product_name', product).maybeSingle();
+    if (error) throw error;
+    hideL();
+    document.getElementById('stk-result').style.display = 'block';
+    if (!data) {
+      document.getElementById('stk-carton').textContent = '0';
+      document.getElementById('stk-piece').textContent = '0';
+      document.getElementById('stk-min').textContent = '-';
+      document.getElementById('stk-updated').textContent = `المنتج "${product}" غير مسجل في مخزن "${warehouse}".`;
+      document.getElementById('stk-edit-box').style.display = 'none';
+      currentStkRowId = null;
+      return;
+    }
+    document.getElementById('stk-carton').textContent = num_(data.carton);
+    document.getElementById('stk-piece').textContent = num_(data.piece);
+    document.getElementById('stk-min').textContent = num_(data.min_alert);
+    document.getElementById('stk-updated').innerHTML = `📦 ${product} — 🏭 ${warehouse}<br>آخر تحديث: ${data.updated_at ? new Date(data.updated_at).toLocaleString('ar-EG') : '-'}`;
+    currentStkRowId = data.id;
+    document.getElementById('stk-edit-carton').value = num_(data.carton);
+    document.getElementById('stk-edit-piece').value = num_(data.piece);
+    document.getElementById('stk-edit-min').value = num_(data.min_alert);
+    document.getElementById('stk-edit-box').style.display = 'block';
+  } catch (e) { errH(e); }
+}
+
+/* ============ تعديل / حذف رصيد صنف في مخزن محدد ============ */
+let currentStkRowId = null;
+async function updateStockQuantity() {
+  if (!currentStkRowId) return toast("ابحث عن رصيد صنف أولاً قبل التعديل", true);
+  const warehouse = document.getElementById('stk-wh').value;
+  const product = document.getElementById('stk-prod').value;
+  const carton = num_(document.getElementById('stk-edit-carton').value);
+  const piece = num_(document.getElementById('stk-edit-piece').value);
+  const min = num_(document.getElementById('stk-edit-min').value);
+  if (carton < 0 || piece < 0) return toast("لا يمكن إدخال كمية سالبة.", true);
+  const ok = await confirmModal(`هل تريد تعديل رصيد "${product}" في مخزن "${warehouse}" ليصبح: ${carton} كرتونة و ${piece} قطعة؟`);
+  if (!ok) return;
+  showL();
+  try {
+    const { error } = await sb.from('inventory').update({ carton, piece, min_alert: min, updated_at: new Date().toISOString() }).eq('id', currentStkRowId);
+    if (error) throw error;
+    toast("تم تعديل الرصيد بنجاح");
+    await refreshDataOnly();
+    searchStock();
+  } catch (e) { errH(e); }
+}
+
+async function deleteStockItem() {
+  if (!currentStkRowId) return toast("ابحث عن رصيد صنف أولاً قبل الحذف", true);
+  const warehouse = document.getElementById('stk-wh').value;
+  const product = document.getElementById('stk-prod').value;
+  const ok = await confirmModal(`متأكد إنك عايز تحذف صنف "${product}" من مخزن "${warehouse}" فقط؟ (لن يتأثر رصيد هذا الصنف في باقي المخازن)`);
+  if (!ok) return;
+  showL();
+  try {
+    const { error } = await sb.from('inventory').delete().eq('id', currentStkRowId);
+    if (error) throw error;
+    toast("تم حذف الصنف من هذا المخزن بنجاح");
+    document.getElementById('stk-result').style.display = 'none';
+    document.getElementById('stk-edit-box').style.display = 'none';
+    currentStkRowId = null;
+    await refreshDataOnly();
+  } catch (e) { errH(e); }
+}
+
+async function submitInv() {
+  const warehouse = document.getElementById('inv-wh').value;
+  const product = document.getElementById('inv-prod').value;
+  const carton = num_(document.getElementById('inv-c').value);
+  const piece = num_(document.getElementById('inv-p').value);
+  const min = num_(document.getElementById('inv-m').value);
+  
+  if (!product) return toast("اختر منتج", true);
+  if (carton < 0 || piece < 0) return toast("لا يمكن إدخال كمية سالبة.", true);
+  if (carton === 0 && piece === 0) return toast("أدخل كمية أكبر من صفر", true);
+  
+  showL();
+  try {
+    const timestamp = new Date().toISOString();
+    const { data: row, error } = await sb.from('inventory').select('*').eq('warehouse_name', warehouse).eq('product_name', product).maybeSingle();
+    if (error) throw error;
+    
+    if (row) {
+      const { error: uErr } = await sb.from('inventory').update({ 
+        carton: num_(row.carton) + carton, 
+        piece: num_(row.piece) + piece, 
+        min_alert: min, 
+        updated_at: timestamp 
+      }).eq('id', row.id);
+      if (uErr) throw uErr;
+    } else {
+      const { error: iErr } = await sb.from('inventory').insert({ 
+        warehouse_name: warehouse, 
+        product_name: product, 
+        carton, 
+        piece, 
+        min_alert: min, 
+        updated_at: timestamp 
+      });
+      if (iErr) throw iErr;
+    }
+    
+    // حفظ العملية الحالية لتمكين التراجع عنها
+    saveLastInvAddition({ warehouse, product, carton, piece, min, timestamp });
+    
+    // تفريغ الحقول للإدخال التالي
+    document.getElementById('inv-c').value = '0';
+    document.getElementById('inv-p').value = '0';
+    
+    toast("تم التوريد بنجاح. يمكنك التراجع من الأسفل إذا كان هناك خطأ.");
+    await refreshDataOnly();
+  } catch (e) { 
+    errH(e); 
+  }
+}
+
+// ============ ميزات التراجع عن آخر توريد ============
+function saveLastInvAddition(data) {
+  lastInvAddition = data;
+  sessionStorage.setItem('lastInvAddition', JSON.stringify(data));
+  renderLastInvAddition();
+}
+
+function loadLastInvAddition() {
+  const saved = sessionStorage.getItem('lastInvAddition');
+  if (saved) {
+    lastInvAddition = JSON.parse(saved);
+    renderLastInvAddition();
+  }
+}
+
+function renderLastInvAddition() {
+  const container = document.getElementById('last-inv-addition-container');
+  if (!lastInvAddition) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = `
+    <div style="border: 1px solid var(--accent); border-radius: 8px; padding: 12px; background: rgba(200, 164, 90, 0.05); margin-top: 15px;">
+      <h4 style="color:var(--accent); margin:0 0 10px 0; font-size:14px;">🔄 آخر عملية توريد (يمكن التراجع عنها لتصحيح الخطأ)</h4>
+      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; font-size: 13px; color: var(--text);">
+        <div>🏭 <b>${lastInvAddition.warehouse}</b></div>
+        <div>📦 <b>${lastInvAddition.product}</b></div>
+        <div>كرتونة: <b>${lastInvAddition.carton}</b></div>
+        <div>قطعة: <b>${lastInvAddition.piece}</b></div>
+      </div>
+      <button class="btn-danger" onclick="undoLastInvAddition()" style="margin-top:12px; width:100%; font-size:13px; padding:10px;">🗑️ تراجع عن هذه الإضافة (للتصحيح)</button>
+    </div>
+  `;
+}
+
+async function undoLastInvAddition() {
+  if (!lastInvAddition) return;
+  const ok = await confirmModal(`هل تريد التراجع عن إضافة:\n${lastInvAddition.carton} كرتونة و ${lastInvAddition.piece} قطعة\nمن "${lastInvAddition.product}" في "${lastInvAddition.warehouse}"؟\n\nسيتم خصم هذه الكمية وإعادة تعبئة النموذج لتتمكن من تصحيح الخطأ.`);
+  if (!ok) return;
+  
+  showL();
+  try {
+    const { data: row, error: selErr } = await sb.from('inventory').select('*').eq('warehouse_name', lastInvAddition.warehouse).eq('product_name', lastInvAddition.product).maybeSingle();
+    if (selErr) throw selErr;
+    
+    if (row) {
+      const newCarton = Math.max(0, num_(row.carton) - lastInvAddition.carton);
+      const newPiece = Math.max(0, num_(row.piece) - lastInvAddition.piece);
+      
+      const { error: uErr } = await sb.from('inventory').update({
+        carton: newCarton,
+        piece: newPiece,
+        updated_at: new Date().toISOString()
+      }).eq('id', row.id);
+      if (uErr) throw uErr;
+    }
+    
+    // إعادة تعبئة النموذج بالبيانات السابقة لتسهيل التصحيح
+    document.getElementById('inv-wh').value = lastInvAddition.warehouse;
+    document.getElementById('inv-prod').value = lastInvAddition.product;
+    document.getElementById('inv-c').value = lastInvAddition.carton;
+    document.getElementById('inv-p').value = lastInvAddition.piece;
+    document.getElementById('inv-m').value = lastInvAddition.min;
+    
+    sessionStorage.removeItem('lastInvAddition');
+    lastInvAddition = null;
+    renderLastInvAddition();
+    
+    toast("تم التراجع بنجاح. تم تعبئة النموذج بالبيانات السابقة لتعديلها.");
+    await refreshDataOnly();
+  } catch (e) {
+    errH(e);
+  }
+}
+
+async function submitReturn() {
+  const srcWh = document.getElementById('ret-wh-src').value;
+  const destWh = document.getElementById('ret-wh-dest').value;
+  const product = document.getElementById('ret-prod').value;
+  const retC = num_(document.getElementById('ret-c').value);
+  const retP = num_(document.getElementById('ret-p').value);
+  const minAlert = num_(document.getElementById('ret-m').value);
+  if (!product || !srcWh || !destWh) return toast("أكمل جميع بيانات المخازن والمنتج", true);
+  if (srcWh === destWh) return toast("لا يمكن أن يكون المخزن المرسل هو نفسه المستلم", true);
+  if (retC < 0 || retP < 0) return toast("لا يمكن إدخال كمية سالبة.", true);
+  if (retC <= 0 && retP <= 0) return toast("أدخل كمية مرتجع أكبر من صفر.", true);
+  showL();
+  try {
+    const timestamp = new Date().toISOString();
+    const { data: srcData, error: srcErr } = await sb.from('inventory').select('*').eq('warehouse_name', srcWh).eq('product_name', product).maybeSingle();
+    if (srcErr) throw srcErr;
+    if (!srcData || num_(srcData.carton) < retC || num_(srcData.piece) < retP) {
+      throw new Error(`الرصيد غير كافٍ في المخزن المرسل (${srcWh}) لتنفيذ هذه العملية.`);
+    }
+    const { error: updateSrcErr } = await sb.from('inventory').update({
+      carton: num_(srcData.carton) - retC,
+      piece: num_(srcData.piece) - retP,
+      updated_at: timestamp
+    }).eq('id', srcData.id);
+    if (updateSrcErr) throw updateSrcErr;
+    const { data: destData, error: destErr } = await sb.from('inventory').select('*').eq('warehouse_name', destWh).eq('product_name', product).maybeSingle();
+    if (destErr) throw destErr;
+    if (destData) {
+      const { error: updateDestErr } = await sb.from('inventory').update({
+        carton: num_(destData.carton) + retC,
+        piece: num_(destData.piece) + retP,
+        min_alert: minAlert,
+        updated_at: timestamp
+      }).eq('id', destData.id);
+      if (updateDestErr) throw updateDestErr;
+    } else {
+      const { error: insertDestErr } = await sb.from('inventory').insert({
+        warehouse_name: destWh, product_name: product, carton: retC, piece: retP, min_alert: minAlert, updated_at: timestamp
+      });
+      if (insertDestErr) throw insertDestErr;
+    }
+    const { error: logErr } = await sb.from('returns_log').insert({
+      warehouse_name: destWh,
+      product_name: product,
+      carton: retC,
+      piece: retP,
+      created_at: timestamp
+    });
+    if (logErr) throw logErr;
+    toast("تم نقل المرتجع بنجاح (خصم من المرسل وإضافة للمستلم)");
+    await refreshDataOnly();
+  } catch (e) { errH(e); }
+}
+
+/* ============ إدارة الفواتير (طباعة، PDF، تعديل، حذف) ============ */
+function searchDate() {
+  const dt = document.getElementById('search-date').value;
+  if (!dt) return;
+  const res = db.sales.filter(s => dateStr(s.timestamp) === dt);
+  const groups = {};
+  res.forEach(s => {
+    const key = new Date(s.timestamp).getTime() + '_' + s.client;
+    if (!groups[key]) groups[key] = { timestamp: s.timestamp, client: s.client, warehouse: s.warehouse, totalInvoice: s.totalInvoice, paid: s.paid, invoiceDebt: s.invoiceDebt, items: [], phone: s.phone, gov: s.gov, agent: s.agent };
+    groups[key].items.push(s);
+  });
+  currentInvoiceGroups = Object.values(groups).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+  document.getElementById('date-results').innerHTML = currentInvoiceGroups.length ? currentInvoiceGroups.map((g, idx) => `<tr>
+    <td>${new Date(g.timestamp).toLocaleTimeString('ar-EG')}</td>
+    <td>${g.warehouse}</td>
+    <td>${g.client}</td>
+    <td>${g.items.map(i => `${i.product} (${i.carton}ك+${i.piece}ق)`).join('، ')}</td>
+    <td>${g.totalInvoice.toFixed(2)}</td>
+    <td>${g.paid.toFixed(2)}</td>
+    <td style="color:var(--danger)">${g.invoiceDebt.toFixed(2)}</td>
+    <td>
+      <div class="btn-group">
+        <button class="btn-ghost" onclick="editInvoice(${idx})">✏️ تعديل</button>
+        <button class="btn-ghost" onclick="printInvoice(${idx})">️ طباعة</button>
+        <button class="btn-ghost" onclick="exportInvoicePDF(${idx})">📄 PDF</button>
+        <button class="btn-danger" onclick="deleteInvoiceAt(${idx})">🗑️ حذف</button>
+      </div>
+    </td>
+  </tr>`).join('') : `<tr><td colspan="8" style="text-align:center">لا يوجد مبيعات في هذا اليوم</td></tr>`;
+}
+
+async function editInvoice(idx) {
+  const group = currentInvoiceGroups[idx];
+  if (!group) return;
+  const ok = await confirmModal(`سيتم تحميل فاتورة "${group.client}" في نموذج البيع للتعديل عليها. عند الحفظ، سيتم حذف الفاتورة القديمة واستبدالها بالجديدة. هل تريد المتابعة؟`);
+  if (!ok) return;
+  document.getElementById('s-warehouse').value = group.warehouse;
+  document.getElementById('s-client').value = group.client;
+  document.getElementById('s-gov').value = group.gov || '';
+  document.getElementById('s-phone').value = group.phone || '';
+  document.getElementById('s-agent').value = group.agent || '';
+  document.getElementById('s-paid').value = group.paid;
+  document.getElementById('products-container').innerHTML = '';
+  rCnt = 0;
+  group.items.forEach(item => {
+    addProductRow();
+    const currentId = rCnt;
+    document.getElementById(`pr-${currentId}`).value = item.product;
+    document.getElementById(`c-${currentId}`).value = item.carton;
+    document.getElementById(`p-${currentId}`).value = item.piece;
+    document.getElementById(`prc-${currentId}`).value = item.price;
+  });
+  calcTotals();
+  showL();
+  try {
+    const ids = group.items.map(i => i.id);
+    const { error } = await sb.rpc('rpc_delete_invoice', { p_sale_ids: ids });
+    if (error) throw new Error(error.message || "فشل حذف الفاتورة القديمة");
+    toast("تم تحميل الفاتورة للتعديل. يرجى مراجعة البيانات ثم الضغط على 'ترحيل الفاتورة'");
+    await refreshDataOnly();
+    switchTab('sales', document.querySelector('.nav-btn'));
+  } catch (e) { errH(e); }
+}
+
+function buildInvoiceHTML(g, dateFormatted) {
+  const itemsRows = g.items.map((i, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td style="text-align:right; padding-right:10px;">${i.product}</td>
+      <td>${i.carton}</td>
+      <td>${i.piece}</td>
+      <td>${i.price.toFixed(2)}</td>
+      <td>${((i.carton + i.piece) * i.price).toFixed(2)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="invoice-container">
+      <div class="header">
+        <h1>فاتورة مبيعات</h1>
+        <p class="date">التاريخ: ${dateFormatted}</p>
+      </div>
+      <div class="info-section">
+        <div class="info-row">
+          <div class="info-item"><strong>العميل:</strong> ${g.client}</div>
+          <div class="info-item"><strong>المخزن:</strong> ${g.warehouse}</div>
+        </div>
+        <div class="info-row">
+          <div class="info-item"><strong>المحافظة:</strong> ${g.gov || '-'}</div>
+          <div class="info-item"><strong>الهاتف:</strong> ${g.phone || '-'}</div>
+          <div class="info-item"><strong>المندوب:</strong> ${g.agent || '-'}</div>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:5%;">#</th>
+            <th>المنتج</th>
+            <th style="width:10%;">كرتونة</th>
+            <th style="width:10%;">قطعة</th>
+            <th style="width:12%;">السعر</th>
+            <th style="width:15%;">الإجمالي</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsRows}
+        </tbody>
+      </table>
+      <div class="totals">
+        <div class="total-item"><strong>الإجمالي:</strong> ${g.totalInvoice.toFixed(2)} ج.م</div>
+        <div class="total-item"><strong>المدفوع:</strong> ${g.paid.toFixed(2)} ج.م</div>
+        <div class="total-item debt"><strong>المديونية:</strong> ${g.invoiceDebt.toFixed(2)} ج.م</div>
+      </div>
+      <div class="footer">
+        شكراً لتعاملكم معنا | هذا المستند صادر من النظام الإلكتروني
+      </div>
+    </div>
+  `;
+}
+
+function buildInvoicePageHTML(g, dateFormatted) {
+  const invoiceContent = buildInvoiceHTML(g, dateFormatted);
+  const clientName = g.client.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  const filename = `فاتورة_${g.client}_${dateFormatted.replace(/[^0-9]/g, '_')}`;
+  
+  return `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>فاتورة - ${g.client}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; }
+  @page { size: A4 portrait; margin: 15mm 10mm; }
+  body { background: white; color: black; padding: 0; font-size: 13px; line-height: 1.5; }
+  .toolbar { background: #f5f5f5; padding: 10px; border-bottom: 1px solid #ddd; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 100; }
+  .toolbar button { padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; font-family: 'Cairo', sans-serif; font-size: 13px; font-weight: bold; transition: all 0.2s; }
+  .btn-print { background: #c8a45a; color: #000; } .btn-print:hover { background: #e8c47a; }
+  .btn-pdf { background: #3fb950; color: #fff; } .btn-pdf:hover { background: #2ea043; }
+  .btn-close { background: #f85149; color: #fff; } .btn-close:hover { background: #da3633; }
+  .invoice-container { max-width: 800px; margin: 20px auto; padding: 20px; background: white; }
+  .header { text-align: center; border-bottom: 3px double #000; padding-bottom: 15px; margin-bottom: 20px; }
+  .header h1 { font-size: 26px; margin-bottom: 8px; color: #000; }
+  .header .date { font-size: 13px; color: #333; }
+  .info-section { margin-bottom: 20px; }
+  .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+  .info-item { font-size: 13px; color: #000; }
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12px; }
+  th, td { border: 1px solid #000; padding: 8px 6px; text-align: center; color: #000; }
+  th { background: #f0f0f0; font-weight: bold; font-size: 12px; }
+  .totals { display: flex; justify-content: flex-end; gap: 30px; margin-top: 20px; padding-top: 15px; border-top: 2px solid #000; font-weight: bold; font-size: 14px; flex-wrap: wrap; }
+  .total-item { color: #000; } .total-item.debt { color: #d00; }
+  .footer { margin-top: 40px; text-align: center; font-size: 11px; border-top: 1px solid #000; padding-top: 10px; color: #333; }
+  @media print { .toolbar { display: none !important; } body { background: white; } .invoice-container { margin: 0; padding: 0; max-width: 100%; } }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn-print" onclick="window.print()">️ طباعة</button>
+    <button class="btn-pdf" onclick="downloadPDF()"> حفظ كـ PDF</button>
+    <button class="btn-close" onclick="window.close()"> إغلاق</button>
+  </div>
+  <div id="invoice-content">${invoiceContent}</div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
+  <script>
+    function downloadPDF() {
+      const element = document.getElementById('invoice-content');
+      const opt = { margin: [10, 10, 10, 10], filename: '${filename}.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true } };
+      html2pdf().set(opt).from(element).save().then(() => { alert('تم حفظ الفاتورة بنجاح ✓'); }).catch(err => { alert('حدث خطأ: ' + err.message); });
+    }
+    document.addEventListener('keydown', function(e) { if (e.ctrlKey && e.key === 'p') { e.preventDefault(); window.print(); } });
+  <\/script>
+</body>
+</html>`;
+}
+
+function openInvoiceWindow(idx) {
+  const g = currentInvoiceGroups[idx];
+  if (!g) { toast("لا توجد فاتورة للعرض", true); return; }
+  if (invoiceWindow && !invoiceWindow.closed) invoiceWindow.close();
+  const dateFormatted = new Date(g.timestamp).toLocaleString('ar-EG');
+  invoiceWindow = window.open('', '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes');
+  if (!invoiceWindow) { toast("يرجى السماح بفتح النوافذ المنبثقة من المتصفح", true); return; }
+  invoiceWindow.document.open();
+  invoiceWindow.document.write(buildInvoicePageHTML(g, dateFormatted));
+  invoiceWindow.document.close();
+  toast("تم فتح نافذة الفاتورة");
+}
+
+function printInvoice(idx) {
+  const g = currentInvoiceGroups[idx];
+  if (!g) return;
+  const dateFormatted = new Date(g.timestamp).toLocaleString('ar-EG');
+  const printWindow = window.open('', '_blank', 'width=900,height=700');
+  if (!printWindow) { toast("يرجى السماح بفتح النوافذ المنبثقة", true); return; }
+  printWindow.document.open();
+  printWindow.document.write(buildInvoicePageHTML(g, dateFormatted));
+  printWindow.document.close();
+  printWindow.onload = function() { setTimeout(() => { printWindow.focus(); printWindow.print(); }, 500); };
+}
+
+function exportInvoicePDF(idx) {
+  const g = currentInvoiceGroups[idx];
+  if (!g) { toast("لا توجد فاتورة للعرض", true); return; }
+  const dateFormatted = new Date(g.timestamp).toLocaleString('ar-EG');
+  const pdfWindow = window.open('', '_blank', 'width=900,height=700');
+  if (!pdfWindow) { toast("يرجى السماح بفتح النوافذ المنبثقة", true); return; }
+  pdfWindow.document.open();
+  pdfWindow.document.write(buildInvoicePageHTML(g, dateFormatted));
+  pdfWindow.document.close();
+  pdfWindow.onload = function() {
+    setTimeout(() => {
+      if (pdfWindow.downloadPDF) { pdfWindow.downloadPDF(); }
+      else {
+        const element = pdfWindow.document.getElementById('invoice-content');
+        if (element && pdfWindow.html2pdf) {
+          const filename = `فاتورة_${g.client}_${dateFormatted.replace(/[^0-9]/g, '_')}.pdf`;
+          const opt = { margin: [10, 10, 10, 10], filename: filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true } };
+          pdfWindow.html2pdf().set(opt).from(element).save().then(() => { toast("تم تصدير PDF بنجاح ✓"); }).catch(err => { toast("فشل التصدير: " + err.message, true); });
+        }
+      }
+    }, 1500);
+  };
+}
+
+async function deleteInvoiceAt(idx) {
+  const group = currentInvoiceGroups[idx];
+  if (!group) return;
+  const ok = await confirmModal(`متأكد إنك عايز تحذف فاتورة "${group.client}" دي؟ هيتم إرجاع الكمية للمخزن وتصحيح مديونية العميل تلقائياً.`);
+  if (!ok) return;
+  showL();
+  try {
+    const ids = group.items.map(i => i.id);
+    const { error } = await sb.rpc('rpc_delete_invoice', { p_sale_ids: ids });
+    if (error) throw new Error(error.message || "فشل حذف الفاتورة");
+    toast("تم حذف الفاتورة وإرجاع الكميات بنجاح");
+    await refreshDataOnly();
+    searchDate();
+  } catch (e) { errH(e); }
+}
+
+async function deleteWarehouse() {
+  const name = document.getElementById('del-wh-select').value;
+  if (!name) return toast("اختر مخزناً للحذف", true);
+  if (name === MAIN_WH) return toast("لا يمكن حذف المخزن الرئيسي.", true);
+  const ok = await confirmModal(`متأكد إنك عايز تحذف مخزن "${name}" وكل أرصدته؟`);
+  if (!ok) return;
+  showL();
+  try {
+    const { error: invErr } = await sb.from('inventory').delete().eq('warehouse_name', name);
+    if (invErr) throw invErr;
+    const { error: whErr } = await sb.from('warehouses').delete().eq('name', name);
+    if (whErr) throw whErr;
+    toast("تم حذف المخزن بنجاح");
+    closeModal('modal-delwh');
+    await refreshDataOnly();
+  } catch (e) { errH(e); }
+}
+
+async function deleteProduct() {
+  const name = document.getElementById('del-pr-select').value;
+  if (!name) return toast("اختر منتجاً للحذف", true);
+  const ok = await confirmModal(`متأكد إنك عايز تحذف منتج "${name}" من كل المخازن؟`);
+  if (!ok) return;
+  showL();
+  try {
+    const { error } = await sb.from('inventory').delete().eq('product_name', name);
+    if (error) throw error;
+    toast("تم حذف المنتج من كل المخازن بنجاح");
+    closeModal('modal-delprod');
+    await refreshDataOnly();
+  } catch (e) { errH(e); }
+}
+
+/* ============ بحث ومديونية العملاء ============ */
+function updateTotalDebt() {
+  const total = db.clients.reduce((sum, c) => sum + c.debt, 0);
+  document.getElementById('total-clients-debt').textContent = total.toFixed(2) + ' ج.م';
+}
+
+let currentClientSearched = "";
+let currentClientDebt = 0;
+function searchClient() {
+  const cName = document.getElementById('c-search-input').value.trim();
+  const cData = db.clients.find(c => c.name === cName);
+  const cSales = db.sales.filter(s => s.client === cName);
+  if (!cData && !cSales.length) return toast("العميل غير موجود", true);
+  currentClientSearched = cName;
+  currentClientDebt = cData ? cData.debt : 0;
+  document.getElementById('c-payment-amount').value = '0';
+  document.getElementById('c-debt-manual').value = currentClientDebt.toFixed(2);
+  document.getElementById('c-profile').style.display = 'block';
+  document.getElementById('c-name').textContent = "العميل: " + cName;
+  document.getElementById('c-total-spend').textContent = cData ? cData.totalPurchases.toFixed(2) : '0';
+  document.getElementById('c-debt').textContent = cData ? cData.debt.toFixed(2) : '0';
+  document.getElementById('c-first-date').textContent = cData && cData.firstDate ? new Date(cData.firstDate).toLocaleDateString('ar-EG') : '-';
+  const pC = {};
+  cSales.forEach(s => pC[s.product] = (pC[s.product]||0) + s.carton + s.piece);
+  let mx="", mn="", mxV=-1, mnV=Infinity;
+  for(let p in pC) { if(pC[p]>mxV){mxV=pC[p];mx=p;} if(pC[p]<mnV){mnV=pC[p];mn=p;} }
+  document.getElementById('c-max-p').textContent = mx ? `${mx} (${mxV})` : '-';
+  document.getElementById('c-min-p').textContent = mn ? `${mn} (${mnV})` : '-';
+  if (cSales.length) {
+    let lastTs = cSales[0].timestamp;
+    cSales.forEach(s => { if (new Date(s.timestamp) > new Date(lastTs)) lastTs = s.timestamp; });
+    const lastLines = cSales.filter(s => new Date(s.timestamp).getTime() === new Date(lastTs).getTime());
+    const first = lastLines[0];
+    document.getElementById('c-last-invoice').innerHTML = `
+      <div>📅 ${new Date(lastTs).toLocaleString('ar-EG')}</div>
+      <div>🏭 المخزن: ${first.warehouse}</div>
+      <div> الأصناف: ${lastLines.map(l => `${l.product} (${l.carton}ك+${l.piece}ق)`).join('، ')}</div>
+      <div>💰 الإجمالي: ${first.totalInvoice.toFixed(2)} | المدفوع: ${first.paid.toFixed(2)} | مديونية الفاتورة: ${first.invoiceDebt.toFixed(2)}</div>
+    `;
+  } else {
+    document.getElementById('c-last-invoice').innerHTML = 'لا يوجد فواتير مسجلة لهذا العميل بعد';
+  }
+}
+
+function buildClientsTable() {
+  const productsByClient = {};
+  db.sales.forEach(s => {
+    if (!productsByClient[s.client]) productsByClient[s.client] = {};
+    productsByClient[s.client][s.product] = (productsByClient[s.client][s.product]||0) + s.carton + s.piece;
+  });
+  document.getElementById('clients-tbody').innerHTML = db.clients.length ? db.clients.map(c => {
+    const pc = productsByClient[c.name] || {};
+    let fav = '-', favV = -1;
+    for (let p in pc) if (pc[p] > favV) { favV = pc[p]; fav = p; }
+    const firstDateStr = c.firstDate ? new Date(c.firstDate).toLocaleDateString('ar-EG') : '-';
+    const safeName = c.name.replace(/'/g, "\\'");
+    return `<tr><td>${c.name}</td><td>${firstDateStr}</td><td>${c.totalPurchases.toFixed(2)}</td><td style="color:${c.debt>0?'var(--danger)':'var(--success)'}">${c.debt.toFixed(2)}</td><td>${fav}${favV>0?` (${favV})`:''}</td><td><button class="btn-danger" style="width:auto; margin:0; padding:6px 12px; font-size:12px;" onclick="deleteClient('${safeName}', ${c.debt})">🗑️ حذف</button></td></tr>`;
+  }).join('') : `<tr><td colspan="6" style="text-align:center">لا يوجد عملاء مسجلين بعد</td></tr>`;
+}
+
+/* ============ إدارة مديونية العميل (دفعة / تعديل يدوي) وحذف العميل ============ */
+async function registerClientPayment() {
+  if (!currentClientSearched) return toast("ابحث عن عميل أولاً", true);
+  const amount = num_(document.getElementById('c-payment-amount').value);
+  if (amount <= 0) return toast("أدخل قيمة دفعة أكبر من صفر", true);
+  const ok = await confirmModal(`هل تريد تسجيل دفعة بقيمة ${amount.toFixed(2)} ج.م من العميل "${currentClientSearched}"؟ سيتم خصمها من المديونية الحالية (${currentClientDebt.toFixed(2)} ج.م) لتصبح ${(currentClientDebt - amount).toFixed(2)} ج.م.`);
+  if (!ok) return;
+  showL();
+  try {
+    const newDebt = currentClientDebt - amount;
+    const { error } = await sb.from('clients').update({ debt: newDebt }).eq('name', currentClientSearched);
+    if (error) throw error;
+    toast("تم تسجيل الدفعة وتحديث المديونية بنجاح");
+    await refreshDataOnly();
+    document.getElementById('c-search-input').value = currentClientSearched;
+    searchClient();
+  } catch (e) { errH(e); }
+}
+
+async function editClientDebtManual() {
+  if (!currentClientSearched) return toast("ابحث عن عميل أولاً", true);
+  const newDebt = num_(document.getElementById('c-debt-manual').value);
+  if (newDebt < 0) return toast("لا يمكن إدخال مديونية سالبة", true);
+  const ok = await confirmModal(`هل تريد تعديل مديونية العميل "${currentClientSearched}" يدوياً من ${currentClientDebt.toFixed(2)} ج.م لتصبح ${newDebt.toFixed(2)} ج.م؟`);
+  if (!ok) return;
+  showL();
+  try {
+    const { error } = await sb.from('clients').update({ debt: newDebt }).eq('name', currentClientSearched);
+    if (error) throw error;
+    toast("تم تعديل المديونية يدوياً بنجاح");
+    await refreshDataOnly();
+    document.getElementById('c-search-input').value = currentClientSearched;
+    searchClient();
+  } catch (e) { errH(e); }
+}
+
+async function deleteClient(name, debt) {
+  if (!name) return toast("اختر عميلاً للحذف", true);
+  debt = num_(debt);
+  let msg = `متأكد إنك عايز تحذف العميل "${name}"؟ لا يمكن التراجع عن هذا الإجراء.`;
+  if (debt > 0) {
+    msg = `⚠️ تحذير: العميل "${name}" عليه مديونية غير محصّلة قدرها ${debt.toFixed(2)} ج.م!\n\nهل أنت متأكد فعلاً من حذف هذا العميل رغم وجود مديونية عليه؟ لا يمكن التراجع عن هذا الإجراء.`;
+  }
+  const ok = await confirmModal(msg);
+  if (!ok) return;
+  showL();
+  try {
+    const { error } = await sb.from('clients').delete().eq('name', name);
+    if (error) throw error;
+    toast("تم حذف العميل بنجاح");
+    document.getElementById('c-profile').style.display = 'none';
+    currentClientSearched = "";
+    currentClientDebt = 0;
+    await refreshDataOnly();
+  } catch (e) { errH(e); }
+}
+
+/* ============ ما تم اليوم ============ */
+function resetTodayToNow() {
+  document.getElementById('td-date-picker').value = '';
+  buildToday();
+}
+
+function buildToday() {
+  const pickerVal = document.getElementById('td-date-picker').value;
+  const targetDateStr = pickerVal ? pickerVal : dateStr(new Date());
+  const tS = db.sales.filter(s => dateStr(s.timestamp) === targetDateStr);
+  const tR = db.returns.filter(r => dateStr(r.timestamp) === targetDateStr);
+  let sMoney = 0; tS.forEach(s => sMoney += s.lineDue);
+  const invoiceKeys = new Set(tS.map(s => new Date(s.timestamp).getTime() + '_' + s.client));
+  let rQty = 0; tR.forEach(r => rQty += r.carton + r.piece);
+  document.getElementById('td-sales-val').textContent = sMoney.toFixed(2);
+  document.getElementById('td-sales-cnt').textContent = invoiceKeys.size;
+  document.getElementById('td-ret-cnt').textContent = rQty;
+  const ops = [];
+  tS.forEach(s => ops.push({ time: s.timestamp, type: 'بيع', detail: `${s.client} — ${s.product} (${s.carton}ك+${s.piece}ق) — ${s.warehouse}`, value: s.lineDue.toFixed(2) }));
+  tR.forEach(r => ops.push({ time: r.timestamp, type: 'مرتجع', detail: `${r.product} (${r.carton}ك+${r.piece}ق) — إلى ${r.warehouse}`, value: '-' }));
+  ops.sort((a,b) => new Date(b.time) - new Date(a.time));
+  document.getElementById('td-ops-tbody').innerHTML = ops.length ? ops.map(o => `<tr><td>${new Date(o.time).toLocaleTimeString('ar-EG')}</td><td style="color:${o.type==='بيع'?'var(--success)':'var(--danger)'}">${o.type}</td><td>${o.detail}</td><td>${o.value}</td></tr>`).join('') : `<tr><td colspan="4" style="text-align:center">لا يوجد عمليات في هذا اليوم</td></tr>`;
+  const byProduct = {};
+  tS.forEach(s => { byProduct[s.product] = (byProduct[s.product]||0) + s.carton + s.piece; });
+  const rows = Object.keys(byProduct).map(p => `<tr><td>${p}</td><td>${byProduct[p]}</td><td>${targetDateStr}</td></tr>`);
+  document.getElementById('td-products-tbody').innerHTML = rows.length ? rows.join('') : `<tr><td colspan="3" style="text-align:center">لا يوجد مبيعات في هذا اليوم</td></tr>`;
+}
+
+/* ============ تحليلات الشهر والسنة ============ */
+function populateYears() {
+  const years = new Set(db.sales.map(s => new Date(s.timestamp).getFullYear()));
+  years.add(new Date().getFullYear());
+  const sorted = Array.from(years).sort((a,b)=>b-a);
+  document.getElementById('an-year').innerHTML = sorted.map(y => `<option value="${y}">${y}</option>`).join('');
+}
+
+function topN(obj, n, asc) {
+  return Object.entries(obj).sort((a,b) => asc ? a[1]-b[1] : b[1]-a[1]).slice(0, n);
+}
+
+function renderList(id, arr, isMoney) {
+  document.getElementById(id).innerHTML = arr.length ? arr.map((e,i) => `<tr><td>${i+1}</td><td>${e[0]}</td><td>${isMoney? Number(e[1]).toFixed(2) : e[1]}</td></tr>`).join('') : `<tr><td colspan="3" style="text-align:center">-</td></tr>`;
+}
+
+function buildAnalytics() {
+  const year = Number(document.getElementById('an-year').value);
+  const monthVal = document.getElementById('an-month').value;
+  const month = monthVal ? Number(monthVal) : null;
+  const yearSales = db.sales.filter(s => new Date(s.timestamp).getFullYear() === year);
+  const periodSales = month ? yearSales.filter(s => new Date(s.timestamp).getMonth()+1 === month) : yearSales;
+  if (!periodSales.length) {
+    document.getElementById('an-empty').style.display = 'block';
+    document.getElementById('an-empty').textContent = 'لا يوجد بيانات مبيعات لهذه الفترة';
+    document.getElementById('an-results').style.display = 'none';
+    return;
+  }
+  document.getElementById('an-empty').style.display = 'none';
+  document.getElementById('an-results').style.display = 'block';
+  let totalSales = 0;
+  const invoiceSet = new Set();
+  const byProduct = {}, byGov = {}, byClient = {};
+  periodSales.forEach(s => {
+    totalSales += s.lineDue;
+    invoiceSet.add(new Date(s.timestamp).getTime() + '_' + s.client);
+    byProduct[s.product] = (byProduct[s.product]||0) + s.carton + s.piece;
+    if (s.gov) byGov[s.gov] = (byGov[s.gov]||0) + s.lineDue;
+    byClient[s.client] = (byClient[s.client]||0) + s.lineDue;
+  });
+  document.getElementById('an-total-sales').textContent = totalSales.toFixed(2);
+  document.getElementById('an-total-invoices').textContent = invoiceSet.size;
+  renderList('an-products-top', topN(byProduct, 5, false), false);
+  renderList('an-products-bottom', topN(byProduct, 5, true), false);
+  renderList('an-gov-top', topN(byGov, 5, false), true);
+  renderList('an-gov-bottom', topN(byGov, 5, true), true);
+  renderList('an-client-top', topN(byClient, 5, false), true);
+  renderList('an-client-bottom', topN(byClient, 5, true), true);
+  const byMonth = {};
+  yearSales.forEach(s => {
+    const m = new Date(s.timestamp).getMonth() + 1;
+    byMonth[m] = (byMonth[m]||0) + s.lineDue;
+  });
+  const monthLabelled = {};
+  Object.keys(byMonth).forEach(m => monthLabelled[ARABIC_MONTHS[Number(m)]] = byMonth[m]);
+  renderList('an-month-top', topN(monthLabelled, 6, false), true);
+  renderList('an-month-bottom', topN(monthLabelled, 6, true), true);
+}
+
+/* ============ حفظ واقتراح أسماء المندوبين ============ */
+function getStoredAgents() {
+  try { return JSON.parse(localStorage.getItem('saved_agents') || '[]'); }
+  catch (e) { return []; }
+}
+function saveStoredAgent(name) {
+  name = str_(name);
+  if (!name) return;
+  try {
+    const list = getStoredAgents();
+    if (!list.includes(name)) {
+      list.push(name);
+      localStorage.setItem('saved_agents', JSON.stringify(list));
+    }
+  } catch (e) {}
+}
+function populateAgentsDatalist() {
+  const fromSales = (db.sales || []).map(s => s.agent).filter(Boolean);
+  const all = new Set([...fromSales, ...getStoredAgents()]);
+  const dl = document.getElementById('agents-datalist');
+  if (dl) dl.innerHTML = Array.from(all).map(a => `<option value="${a.replace(/"/g,'&quot;')}"></option>`).join('');
+}
+
+/* ============ تطابق أسماء العملاء الذكي ============ */
+function normalizeArabicName(str) {
+  return str_(str).replace(/[\u064B-\u0652\u0670\u0640]/g, '').replace(/[إأآا]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+function editDistance(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n; if (n === 0) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j-1], dp[i-1][j], dp[i][j-1]);
+    }
+  }
+  return dp[m][n];
+}
+function hideClientWarning() {
+  const box = document.getElementById('client-name-warning');
+  box.style.display = 'none'; box.innerHTML = '';
+}
+function useClientName(name) {
+  document.getElementById('s-client').value = name;
+  hideClientWarning();
+}
+let clientCheckTimer = null;
+function onClientNameInput() {
+  clearTimeout(clientCheckTimer);
+  clientCheckTimer = setTimeout(checkClientNameSimilarity, 250);
+}
+function checkClientNameSimilarity() {
+  const raw = str_(document.getElementById('s-client').value);
+  if (!raw) return hideClientWarning();
+  if (db.clients.some(c => c.name === raw)) return hideClientWarning();
+  const norm = normalizeArabicName(raw);
+  if (!norm) return hideClientWarning();
+  let best = null, bestDist = Infinity;
+  db.clients.forEach(c => {
+    const cNorm = normalizeArabicName(c.name);
+    if (cNorm === norm) { best = c.name; bestDist = 0; return; }
+    const dist = editDistance(norm, cNorm);
+    if (dist <= 1 && Math.abs(norm.length - cNorm.length) <= 2 && dist < bestDist) {
+      best = c.name; bestDist = dist;
+    }
+  });
+  const box = document.getElementById('client-name-warning');
+  if (best) {
+    box.style.display = 'block';
+    box.innerHTML = `⚠️ فيه عميل مسجل بالفعل باسم قريب جداً: <b>"${best}"</b>. 
+      <button type="button" onclick="useClientName('${best.replace(/'/g,"\\'")}')" style="width:auto; display:inline-block; margin:8px 0 0; padding:6px 14px; font-size:12px;">استخدام الاسم المسجل</button>`;
+  } else {
+    hideClientWarning();
+  }
+}
+document.getElementById('s-client').addEventListener('input', onClientNameInput);
+document.getElementById('s-client').addEventListener('blur', checkClientNameSimilarity);
+
+/* ============ المودالات ============ */
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+async function saveWh() {
+  const name = str_(document.getElementById('new-wh').value);
+  if (!name) return;
+  showL();
+  try {
+    const { data: existing, error: eErr } = await sb.from('warehouses').select('id').eq('name', name).maybeSingle();
+    if (eErr) throw eErr;
+    if (existing) throw new Error("المخزن مسجل بالفعل.");
+    const { error } = await sb.from('warehouses').insert({ name, code: 'wh_' + Date.now() });
+    if (error) throw error;
+    const timestamp = new Date().toISOString();
+    const rows = db.products.map(p => ({ warehouse_name: name, product_name: p, carton: 0, piece: 0, min_alert: 10, updated_at: timestamp }));
+    if (rows.length) {
+      const { error: iErr } = await sb.from('inventory').insert(rows);
+      if (iErr) throw iErr;
+    }
+    closeModal('modal-wh');
+    document.getElementById('new-wh').value = '';
+    await refreshDataOnly();
+  } catch (e) { errH(e); }
+}
+
+async function saveProd() {
+  const name = str_(document.getElementById('new-pr').value);
+  const carton = num_(document.getElementById('new-pr-c').value);
+  const piece = num_(document.getElementById('new-pr-p').value);
+  if (!name) return;
+  showL();
+  try {
+    const timestamp = new Date().toISOString();
+    const rows = db.warehouses.map(w => ({
+      warehouse_name: w.name, product_name: name,
+      carton: w.name === MAIN_WH ? carton : 0, piece: w.name === MAIN_WH ? piece : 0,
+      min_alert: 10, updated_at: timestamp
+    }));
+    const { error } = await sb.from('inventory').insert(rows);
+    if (error) throw error;
+    closeModal('modal-prod');
+    document.getElementById('new-pr').value = '';
+    document.getElementById('new-pr-c').value = '';
+    document.getElementById('new-pr-p').value = '';
+    await refreshDataOnly();
+  } catch (e) { errH(e); }
+}
+
+async function saveCust() {
+  const name = str_(document.getElementById('new-cu').value);
+  const debt = num_(document.getElementById('new-cu-d').value);
+  if (!name) return;
+  showL();
+  try {
+    const { data: existing, error: eErr } = await sb.from('clients').select('id').eq('name', name).maybeSingle();
+    if (eErr) throw eErr;
+    if (existing) throw new Error("العميل مسجل بالفعل.");
+    const { error } = await sb.from('clients').insert({ name, total_purchases: 0, debt, first_date: new Date().toISOString() });
+    if (error) throw error;
+    closeModal('modal-cust');
+    document.getElementById('new-cu').value = '';
+    document.getElementById('new-cu-d').value = '';
+    await refreshDataOnly();
+  } catch (e) { errH(e); }
+}
+</script>
+</body>
+</html>
