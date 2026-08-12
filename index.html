@@ -104,6 +104,7 @@
         </select></div>
         <div><label>رقم الهاتف</label><input type="text" id="s-phone"></div>
         <div><label>المندوب</label><input type="text" id="s-agent" list="agents-datalist"><datalist id="agents-datalist"></datalist></div>
+        <div><label>تاريخ ووقت الفاتورة</label><input type="datetime-local" id="s-invoice-date"></div>
       </div>
       <div id="products-container"></div>
       <button onclick="addProductRow()" style="background:transparent; border:1px solid var(--accent); color:var(--accent); width:auto; padding:8px 15px;">+ صنف جديد للفاتورة</button>
@@ -156,6 +157,23 @@
           <button onclick="openModal('modal-delwh')" class="btn-danger" style="margin:0;">🗑️ حذف مخزن</button>
           <button onclick="openModal('modal-delprod')" class="btn-danger" style="margin:0;">🗑️ حذف منتج</button>
         </div>
+      </div>
+
+      <!-- عمود سجل حركة المخزون (توريدات وتعديلات) -->
+      <div class="card">
+        <h3 style="color:var(--accent); margin-bottom:15px;">📜 سجل حركة المخزون (توريدات سابقة)</h3>
+        <p style="color:var(--muted); font-size:12px; margin-bottom:10px;">يعرض كل تغييرات الرصيد (توريد، تعديل يدوي، مرتجع) لكل مخزن، الأحدث أولاً.</p>
+        <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div><label>المخزن</label><select id="log-wh"></select></div>
+          <div><label>بحث بتاريخ معيّن</label><input type="date" id="log-date"></div>
+        </div>
+        <div class="btn-group">
+          <button onclick="showLatestInvLog()">📌 عرض آخر حركة</button>
+          <button onclick="searchInvLogByDate()">🔍 بحث بالتاريخ</button>
+        </div>
+        <div id="log-current" style="margin-top:12px;"></div>
+        <button id="log-prev-btn" onclick="showPrevInvLog()" style="display:none;">⬅️ الحركة السابقة</button>
+        <div id="log-date-results" style="overflow-x:auto; margin-top:12px;"></div>
       </div>
 
       <!-- العمود الأيسر: البحث عن الرصيد -->
@@ -211,6 +229,30 @@
       </div>
       <button class="btn-danger" onclick="submitReturn()">📤 تنفيذ نقل المرتجع</button>
     </div>
+
+    <div class="card">
+      <h3 style="color:var(--accent)">🔍 البحث في سجل المرتجعات بتاريخ</h3>
+      <div class="grid">
+        <div><label>اختر التاريخ</label><input type="date" id="ret-search-date"></div>
+        <div style="display:flex; align-items:end;"><button onclick="searchReturnsByDate()">بحث</button></div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>الوقت</th><th>المخزن (الوجهة)</th><th>المنتج</th><th>كرتونة</th><th>قطعة</th></tr></thead>
+          <tbody id="ret-date-results"><tr><td colspan="5" style="text-align:center">اختر تاريخاً للبحث</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--accent)">📌 آخر مرتجع وصل لمخزن معيّن</h3>
+      <div class="grid-2">
+        <div><label>المخزن</label><select id="ret-log-wh"></select></div>
+        <div style="display:flex; align-items:end;"><button onclick="showLatestReturn()">عرض آخر مرتجع</button></div>
+      </div>
+      <div id="ret-log-current" style="margin-top:12px;"></div>
+      <button id="ret-log-prev-btn" onclick="showPrevReturn()" style="display:none;">⬅️ المرتجع السابق</button>
+    </div>
   </div>
 
   <div id="tab-clients" class="panel">
@@ -258,7 +300,7 @@
       <button onclick="openModal('modal-cust')" style="width:auto; padding:5px 15px;">+ عميل جديد بافتتاحي</button>
       <div style="overflow-x:auto;">
         <table>
-          <thead><tr><th>اسم العميل</th><th>أول تعامل</th><th>إجمالي المشتريات</th><th>المديونية</th><th>أكثر منتج اشتراه</th><th>إجراءات</th></tr></thead>
+          <thead><tr><th>اسم العميل</th><th>أول تعامل</th><th>إجمالي المشتريات</th><th>المديونية</th><th>إجراءات</th></tr></thead>
           <tbody id="clients-tbody"></tbody>
         </table>
       </div>
@@ -362,6 +404,7 @@ let rCnt = 0;
 let currentInvoiceGroups = [];
 let invoiceWindow = null;
 let lastInvAddition = null; // متغير لتتبع آخر عملية توريد للتراجع عنها
+let pendingEditSaleIds = null; // لو المستخدم بيعدّل فاتورة قديمة: بنحتفظ بمعرّفاتها هنا ومنحذفهاش إلا بعد نجاح حفظ الفاتورة الجديدة (لمنع فقدان البيانات لو حصل قطع اتصال)
 
 /* ============ نافذة تأكيد موحّدة ============ */
 function confirmModal(message) {
@@ -386,9 +429,64 @@ function toast(m, err=false) {
 }
 function errH(e) { hideL(); toast((e && e.message) || e, true); }
 function dateStr(d) { d = new Date(d); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+// تنسيق تاريخ/وقت لحقل datetime-local (بتوقيت المتصفح المحلي)
+function nowLocalInputValue() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+// مفتاح تجميع الفاتورة: لو موجود invoice_group_id حقيقي من قاعدة البيانات بيتستخدم (الأدق).
+// لو مش موجود (قاعدة بيانات قديمة لسه ما اتحدثتش)، بيرجع لتجميع تقريبي بفارق وقت لحظي (٣ ثواني) بدل مطابقة المللي ثانية بالظبط،
+// عشان أصناف نفس الفاتورة اللي بتتسجل بفارق بسيط جداً في التوقيت متتقسمش غلط لفاتورتين.
+function invoiceKeyOf(s) {
+  if (s.invoiceGroup) return 'g_' + s.invoiceGroup;
+  const bucket = Math.floor(new Date(s.timestamp).getTime() / 3000);
+  return 't_' + bucket + '_' + s.client;
+}
 const ARABIC_MONTHS = ['', 'يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 function num_(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
 function str_(v) { return v === null || v === undefined ? "" : v.toString().trim(); }
+
+/* ============ تنضيف أي نص قبل حقنه في HTML (منع XSS) ============ */
+// استخدم esc() لأي نص هيتحط كمحتوى داخل innerHTML
+function esc(v) {
+  return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+}
+// استخدم escAttr() لأي نص هيتحط جوه onclick="..." (قيمة string ملفوفة بـ ' داخل attribute ملفوف بـ ")
+function escAttr(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* ============ إعادة محاولة تلقائية عند فشل الاتصال (Retry + Exponential Backoff) ============ */
+async function withRetry(fn, { retries = 3, baseDelay = 600 } = {}) {
+  let lastErr = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const result = await fn();
+      if (result && result.error) {
+        const status = result.error.status || result.error.code;
+        const isTransient = !navigator.onLine || result.error.message === 'Failed to fetch' ||
+          status === 408 || status === 429 || (typeof status === 'number' && status >= 500);
+        if (isTransient && attempt < retries) {
+          lastErr = result.error;
+          await new Promise(r => setTimeout(r, baseDelay * Math.pow(2, attempt) + Math.random() * 200));
+          continue;
+        }
+      }
+      return result;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, baseDelay * Math.pow(2, attempt) + Math.random() * 200));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr || new Error('فشل الاتصال بعد عدة محاولات');
+}
 
 /* ============ تسجيل الدخول ============ */
 async function doLogin() {
@@ -398,7 +496,7 @@ async function doLogin() {
   if (!email || !password) return toast("أدخل البريد الإلكتروني وكلمة المرور", true);
   showL();
   try {
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    const { data, error } = await withRetry(() => sb.auth.signInWithPassword({ email, password }));
     if (error) throw new Error("بيانات الدخول غير صحيحة.");
     if (remember) localStorage.setItem('remembered_email', email);
     else localStorage.removeItem('remembered_email');
@@ -407,7 +505,7 @@ async function doLogin() {
 }
 
 async function establishSession(session) {
-  const { data: profile, error: pErr } = await sb.from('profiles').select('role, full_name').eq('id', session.user.id).maybeSingle();
+  const { data: profile, error: pErr } = await withRetry(() => sb.from('profiles').select('role, full_name').eq('id', session.user.id).maybeSingle());
   if (pErr) throw pErr;
   if (!profile || (profile.role !== 'admin' && profile.role !== 'agent')) {
     await sb.auth.signOut();
@@ -456,49 +554,64 @@ async function refreshDataOnly() {
   catch (e) { errH(e); }
 }
 
+// تحويل صف مبيعات من الشكل اللي في قاعدة البيانات للشكل اللي بيستخدمه الواجهة
+function mapSaleRow(s) {
+  return {
+    id: s.id, timestamp: s.created_at, client: s.client_name, gov: s.governorate, phone: s.phone, agent: s.agent,
+    warehouse: s.warehouse_name, product: s.product_name, carton: num_(s.carton), piece: num_(s.piece),
+    price: num_(s.price), lineDue: num_(s.line_due), totalInvoice: num_(s.total_invoice), paid: num_(s.paid), invoiceDebt: num_(s.invoice_debt),
+    invoiceGroup: s.invoice_group_id || null
+  };
+}
+function mapReturnRow(r) {
+  return { timestamp: r.created_at, warehouse: r.warehouse_name, product: r.product_name, carton: num_(r.carton), piece: num_(r.piece) };
+}
+// حدود يوم واحد بتوقيت المتصفح المحلي، عشان استعلامات "مبيعات يوم كذا" تكون دقيقة ومتوافقة مع dateStr()
+function dayRangeISO(dt) {
+  const start = new Date(dt + 'T00:00:00');
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+}
+
+// ملحوظة أداء مهمة: من قبل كان بيتم تحميل *كل* صفوف sales و returns_log مرة واحدة عند كل تسجيل دخول/تحديث.
+// ده كان هيسبب تهنيج فعلي بعد أشهر من الاستخدام مع آلاف الصفوف (تحميل كل البيانات في المتصفح في كل مرة).
+// دلوقتي بنحمّل بس البيانات الأساسية (المخازن، المنتجات، العملاء)، وأي شاشة محتاجة تفاصيل مبيعات (اليوم، بحث بتاريخ، بحث عميل، تحليلات)
+// بتجيب البيانات اللي محتاجاها بس مباشرة من قاعدة البيانات (مفلترة بتاريخ/عميل)، مش من نسخة محلية كاملة.
 async function loadInitialData() {
-  const { data: warehouses, error: whErr } = await sb.from('warehouses').select('*').order('id');
+  const { data: warehouses, error: whErr } = await withRetry(() => sb.from('warehouses').select('*').order('id'));
   if (whErr) throw whErr;
-  const { data: mainInv, error: invErr } = await sb.from('inventory').select('product_name').eq('warehouse_name', MAIN_WH);
+  const { data: mainInv, error: invErr } = await withRetry(() => sb.from('inventory').select('product_name').eq('warehouse_name', MAIN_WH));
   if (invErr) throw invErr;
-  const { data: clients, error: clErr } = await sb.from('clients').select('*').order('name');
+  const { data: clients, error: clErr } = await withRetry(() => sb.from('clients').select('*').order('name'));
   if (clErr) throw clErr;
   db.role = CURRENT_ROLE;
   db.warehouses = warehouses || [];
   db.products = (mainInv || []).map(r => r.product_name);
   db.clients = (clients || []).map(c => ({ name: c.name, totalPurchases: num_(c.total_purchases), debt: num_(c.debt), firstDate: c.first_date }));
-  db.sales = []; db.returns = [];
-  if (CURRENT_ROLE === 'admin') {
-    const { data: sales, error: sErr } = await sb.from('sales').select('*').order('created_at', { ascending: false });
-    if (sErr) throw sErr;
-    db.sales = (sales || []).map(s => ({
-      id: s.id, timestamp: s.created_at, client: s.client_name, gov: s.governorate, phone: s.phone, agent: s.agent,
-      warehouse: s.warehouse_name, product: s.product_name, carton: num_(s.carton), piece: num_(s.piece),
-      price: num_(s.price), lineDue: num_(s.line_due), totalInvoice: num_(s.total_invoice), paid: num_(s.paid), invoiceDebt: num_(s.invoice_debt)
-    }));
-    const { data: returns, error: rErr } = await sb.from('returns_log').select('*').order('created_at', { ascending: false });
-    if (rErr) throw rErr;
-    db.returns = (returns || []).map(r => ({ timestamp: r.created_at, warehouse: r.warehouse_name, product: r.product_name, carton: num_(r.carton), piece: num_(r.piece) }));
-  }
+  db.sales = []; db.returns = []; // بقت دايماً فاضية؛ بيتملوا وقتياً بس وقت العرض من الدوال المتخصصة تحت
 }
 
 function refreshUI() {
-  const whOpts = db.warehouses.map(w => `<option value="${w.name}">${w.name}</option>`).join('');
+  const whOpts = db.warehouses.map(w => `<option value="${esc(w.name)}">${esc(w.name)}</option>`).join('');
   document.getElementById('s-warehouse').innerHTML = whOpts;
   document.getElementById('inv-wh').innerHTML = whOpts;
   document.getElementById('stk-wh').innerHTML = whOpts;
-  document.getElementById('del-wh-select').innerHTML = db.warehouses.filter(w => w.name !== MAIN_WH).map(w => `<option value="${w.name}">${w.name}</option>`).join('') || '<option value="">لا يوجد مخازن قابلة للحذف</option>';
+  document.getElementById('del-wh-select').innerHTML = db.warehouses.filter(w => w.name !== MAIN_WH).map(w => `<option value="${esc(w.name)}">${esc(w.name)}</option>`).join('') || '<option value="">لا يوجد مخازن قابلة للحذف</option>';
   document.getElementById('ret-wh-src').innerHTML = whOpts;
   document.getElementById('ret-wh-dest').innerHTML = whOpts;
-  const prOpts = '<option value="">اختر</option>' + db.products.map(p => `<option>${p}</option>`).join('');
+  document.getElementById('log-wh').innerHTML = whOpts;
+  document.getElementById('ret-log-wh').innerHTML = whOpts;
+  const prOpts = '<option value="">اختر</option>' + db.products.map(p => `<option>${esc(p)}</option>`).join('');
   document.getElementById('inv-prod').innerHTML = prOpts;
   document.getElementById('ret-prod').innerHTML = prOpts;
   document.getElementById('stk-prod').innerHTML = prOpts;
-  document.getElementById('del-pr-select').innerHTML = db.products.map(p => `<option>${p}</option>`).join('') || '<option value="">لا يوجد منتجات</option>';
+  document.getElementById('del-pr-select').innerHTML = db.products.map(p => `<option>${esc(p)}</option>`).join('') || '<option value="">لا يوجد منتجات</option>';
   document.querySelectorAll('.pr-sel').forEach(el => { const v=el.value; el.innerHTML=prOpts; el.value=v; });
-  document.getElementById('clients-datalist').innerHTML = db.clients.map(c => `<option value="${c.name.replace(/"/g,'&quot;')}"></option>`).join('');
+  document.getElementById('clients-datalist').innerHTML = db.clients.map(c => `<option value="${esc(c.name)}"></option>`).join('');
   populateAgentsDatalist();
   loadLastInvAddition(); // تحميل حالة التراجع إن وجدت
+  const invDateEl = document.getElementById('s-invoice-date');
+  if (invDateEl && !invDateEl.value) invDateEl.value = nowLocalInputValue();
   if (db.role === "admin") {
     updateTotalDebt();
     buildClientsTable();
@@ -522,7 +635,7 @@ function addProductRow() {
   rCnt++;
   const d = document.createElement('div');
   d.className = 'row-item'; d.id = `r-${rCnt}`;
-  const prOpts = '<option value="">اختر</option>' + db.products.map(p => `<option>${p}</option>`).join('');
+  const prOpts = '<option value="">اختر</option>' + db.products.map(p => `<option>${esc(p)}</option>`).join('');
   d.innerHTML = `
     <div><label>المنتج</label><select id="pr-${rCnt}" class="pr-sel" onchange="calcTotals()">${prOpts}</select></div>
     <div><label>كرتونة</label><input type="number" id="c-${rCnt}" value="0" min="0" oninput="calcTotals()"></div>
@@ -551,6 +664,7 @@ async function submitSales() {
   const phone = document.getElementById('s-phone').value;
   const agent = document.getElementById('s-agent').value;
   const paid = num_(document.getElementById('s-paid').value);
+  const invoiceDateRaw = document.getElementById('s-invoice-date').value; // قيمة datetime-local
   const items = [];
   document.querySelectorAll('.row-item').forEach(r => {
     const id = r.id.split('-')[1];
@@ -561,19 +675,50 @@ async function submitSales() {
     if (pr && (c > 0 || p > 0)) items.push({ product: pr, carton: c, piece: p, price });
   });
   if (!client || items.length === 0) return toast("أكمل بيانات العميل وأضف منتجاً بكمية", true);
+  // تحديد لو المستخدم اختار تاريخاً/وقتاً مختلف عن اللحظة الحالية (فارق أكتر من دقيقة) — يعني عايز يسجل الفاتورة بتاريخ قديم/مخصص
+  let desiredISO = null;
+  if (invoiceDateRaw) {
+    const chosen = new Date(invoiceDateRaw);
+    if (!isNaN(chosen.getTime()) && Math.abs(Date.now() - chosen.getTime()) > 60000) {
+      desiredISO = chosen.toISOString();
+    }
+  }
+  const callStartISO = new Date(Date.now() - 5000).toISOString(); // هامش أمان ٥ ثواني قبل بدء النداء
   showL();
   try {
-    const { error } = await sb.rpc('rpc_process_sale', {
+    const { error } = await withRetry(() => sb.rpc('rpc_process_sale', {
       p_warehouse: warehouse, p_client: client, p_gov: gov, p_phone: phone, p_agent: agent,
       p_paid: paid, p_items: items
-    });
+    }));
     if (error) throw new Error(error.message || "فشل تنفيذ عملية البيع");
+    // لو المستخدم اختار تاريخاً مخصصاً للفاتورة: بنجيب الفاتورة اللي اتسجلت للتو (بمعرفة العميل والوقت) ونعدّل تاريخها
+    // ملحوظة: مفيش تعديل على RPC هنا؛ ده تحديث لاحق آمن بيمس فقط الفاتورة اللي احنا لسه سجلناها (limit = عدد الأصناف)
+    if (desiredISO) {
+      try {
+        const { data: justInserted, error: fErr } = await withRetry(() => sb.from('sales').select('id').eq('client_name', client).gte('created_at', callStartISO).order('created_at', { ascending: false }).limit(items.length));
+        if (!fErr && justInserted && justInserted.length) {
+          const idsToDate = justInserted.map(r => r.id);
+          const { error: uErr } = await withRetry(() => sb.from('sales').update({ created_at: desiredISO }).in('id', idsToDate));
+          if (uErr) toast("تم حفظ الفاتورة لكن تعذر ضبط التاريخ المخصص لها", true);
+        }
+      } catch (dateErr) { toast("تم حفظ الفاتورة لكن تعذر ضبط التاريخ المخصص لها", true); }
+    }
+    // لو كنا في وضع تعديل فاتورة قديمة: بنحذفها دلوقتي بعد ما الجديدة اتحفظت بنجاح (مش قبلها) لمنع فقدان البيانات
+    if (pendingEditSaleIds) {
+      const oldIds = pendingEditSaleIds;
+      pendingEditSaleIds = null;
+      const { error: delErr } = await withRetry(() => sb.rpc('rpc_delete_invoice', { p_sale_ids: oldIds }));
+      if (delErr) {
+        toast("تم حفظ الفاتورة الجديدة بنجاح، لكن فشل حذف الفاتورة القديمة تلقائياً — يرجى حذفها يدوياً من سجل المبيعات لتجنب التكرار", true);
+      }
+    }
     saveStoredAgent(agent);
     toast("تم البيع بنجاح");
     document.getElementById('products-container').innerHTML = '';
     rCnt = 0;
     document.getElementById('s-client').value = '';
     document.getElementById('s-paid').value = '0';
+    document.getElementById('s-invoice-date').value = nowLocalInputValue();
     hideClientWarning();
     calcTotals();
     await refreshDataOnly();
@@ -587,7 +732,7 @@ async function searchStock() {
   if (!warehouse || !product) return toast("اختر المخزن والمنتج", true);
   showL();
   try {
-    const { data, error } = await sb.from('inventory').select('*').eq('warehouse_name', warehouse).eq('product_name', product).maybeSingle();
+    const { data, error } = await withRetry(() => sb.from('inventory').select('*').eq('warehouse_name', warehouse).eq('product_name', product).maybeSingle());
     if (error) throw error;
     hideL();
     document.getElementById('stk-result').style.display = 'block';
@@ -603,7 +748,7 @@ async function searchStock() {
     document.getElementById('stk-carton').textContent = num_(data.carton);
     document.getElementById('stk-piece').textContent = num_(data.piece);
     document.getElementById('stk-min').textContent = num_(data.min_alert);
-    document.getElementById('stk-updated').innerHTML = `📦 ${product} — 🏭 ${warehouse}<br>آخر تحديث: ${data.updated_at ? new Date(data.updated_at).toLocaleString('ar-EG') : '-'}`;
+    document.getElementById('stk-updated').innerHTML = `📦 ${esc(product)} — 🏭 ${esc(warehouse)}<br>آخر تحديث: ${data.updated_at ? new Date(data.updated_at).toLocaleString('ar-EG') : '-'}`;
     currentStkRowId = data.id;
     document.getElementById('stk-edit-carton').value = num_(data.carton);
     document.getElementById('stk-edit-piece').value = num_(data.piece);
@@ -626,7 +771,7 @@ async function updateStockQuantity() {
   if (!ok) return;
   showL();
   try {
-    const { error } = await sb.from('inventory').update({ carton, piece, min_alert: min, updated_at: new Date().toISOString() }).eq('id', currentStkRowId);
+    const { error } = await withRetry(() => sb.from('inventory').update({ carton, piece, min_alert: min, updated_at: new Date().toISOString() }).eq('id', currentStkRowId));
     if (error) throw error;
     toast("تم تعديل الرصيد بنجاح");
     await refreshDataOnly();
@@ -642,7 +787,7 @@ async function deleteStockItem() {
   if (!ok) return;
   showL();
   try {
-    const { error } = await sb.from('inventory').delete().eq('id', currentStkRowId);
+    const { error } = await withRetry(() => sb.from('inventory').delete().eq('id', currentStkRowId));
     if (error) throw error;
     toast("تم حذف الصنف من هذا المخزن بنجاح");
     document.getElementById('stk-result').style.display = 'none';
@@ -666,28 +811,11 @@ async function submitInv() {
   showL();
   try {
     const timestamp = new Date().toISOString();
-    const { data: row, error } = await sb.from('inventory').select('*').eq('warehouse_name', warehouse).eq('product_name', product).maybeSingle();
-    if (error) throw error;
-    
-    if (row) {
-      const { error: uErr } = await sb.from('inventory').update({ 
-        carton: num_(row.carton) + carton, 
-        piece: num_(row.piece) + piece, 
-        min_alert: min, 
-        updated_at: timestamp 
-      }).eq('id', row.id);
-      if (uErr) throw uErr;
-    } else {
-      const { error: iErr } = await sb.from('inventory').insert({ 
-        warehouse_name: warehouse, 
-        product_name: product, 
-        carton, 
-        piece, 
-        min_alert: min, 
-        updated_at: timestamp 
-      });
-      if (iErr) throw iErr;
-    }
+    // بنستخدم RPC ذرّي (rpc_adjust_inventory) بدل قراءة-ثم-كتابة عشان نمنع فقدان تحديثات لو حصل توريد لنفس الصنف في نفس اللحظة من جهاز تاني
+    const { error } = await withRetry(() => sb.rpc('rpc_adjust_inventory', {
+      p_warehouse: warehouse, p_product: product, p_carton_delta: carton, p_piece_delta: piece, p_min_alert: min
+    }));
+    if (error) throw new Error(error.message || "فشل تنفيذ عملية التوريد");
     
     // حفظ العملية الحالية لتمكين التراجع عنها
     saveLastInvAddition({ warehouse, product, carton, piece, min, timestamp });
@@ -728,10 +856,10 @@ function renderLastInvAddition() {
     <div style="border: 1px solid var(--accent); border-radius: 8px; padding: 12px; background: rgba(200, 164, 90, 0.05); margin-top: 15px;">
       <h4 style="color:var(--accent); margin:0 0 10px 0; font-size:14px;">🔄 آخر عملية توريد (يمكن التراجع عنها لتصحيح الخطأ)</h4>
       <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; font-size: 13px; color: var(--text);">
-        <div>🏭 <b>${lastInvAddition.warehouse}</b></div>
-        <div>📦 <b>${lastInvAddition.product}</b></div>
-        <div>كرتونة: <b>${lastInvAddition.carton}</b></div>
-        <div>قطعة: <b>${lastInvAddition.piece}</b></div>
+        <div>🏭 <b>${esc(lastInvAddition.warehouse)}</b></div>
+        <div>📦 <b>${esc(lastInvAddition.product)}</b></div>
+        <div>كرتونة: <b>${esc(lastInvAddition.carton)}</b></div>
+        <div>قطعة: <b>${esc(lastInvAddition.piece)}</b></div>
       </div>
       <button class="btn-danger" onclick="undoLastInvAddition()" style="margin-top:12px; width:100%; font-size:13px; padding:10px;">🗑️ تراجع عن هذه الإضافة (للتصحيح)</button>
     </div>
@@ -745,20 +873,12 @@ async function undoLastInvAddition() {
   
   showL();
   try {
-    const { data: row, error: selErr } = await sb.from('inventory').select('*').eq('warehouse_name', lastInvAddition.warehouse).eq('product_name', lastInvAddition.product).maybeSingle();
-    if (selErr) throw selErr;
-    
-    if (row) {
-      const newCarton = Math.max(0, num_(row.carton) - lastInvAddition.carton);
-      const newPiece = Math.max(0, num_(row.piece) - lastInvAddition.piece);
-      
-      const { error: uErr } = await sb.from('inventory').update({
-        carton: newCarton,
-        piece: newPiece,
-        updated_at: new Date().toISOString()
-      }).eq('id', row.id);
-      if (uErr) throw uErr;
-    }
+    // نفس الـRPC الذرّي، لكن بدلتا سالبة، عشان الخصم يحصل بأمان من غير قراءة-ثم-كتابة
+    const { error } = await withRetry(() => sb.rpc('rpc_adjust_inventory', {
+      p_warehouse: lastInvAddition.warehouse, p_product: lastInvAddition.product,
+      p_carton_delta: -lastInvAddition.carton, p_piece_delta: -lastInvAddition.piece, p_min_alert: null
+    }));
+    if (error) throw new Error(error.message || "فشل التراجع عن العملية");
     
     // إعادة تعبئة النموذج بالبيانات السابقة لتسهيل التصحيح
     document.getElementById('inv-wh').value = lastInvAddition.warehouse;
@@ -791,64 +911,173 @@ async function submitReturn() {
   if (retC <= 0 && retP <= 0) return toast("أدخل كمية مرتجع أكبر من صفر.", true);
   showL();
   try {
-    const timestamp = new Date().toISOString();
-    const { data: srcData, error: srcErr } = await sb.from('inventory').select('*').eq('warehouse_name', srcWh).eq('product_name', product).maybeSingle();
-    if (srcErr) throw srcErr;
-    if (!srcData || num_(srcData.carton) < retC || num_(srcData.piece) < retP) {
-      throw new Error(`الرصيد غير كافٍ في المخزن المرسل (${srcWh}) لتنفيذ هذه العملية.`);
-    }
-    const { error: updateSrcErr } = await sb.from('inventory').update({
-      carton: num_(srcData.carton) - retC,
-      piece: num_(srcData.piece) - retP,
-      updated_at: timestamp
-    }).eq('id', srcData.id);
-    if (updateSrcErr) throw updateSrcErr;
-    const { data: destData, error: destErr } = await sb.from('inventory').select('*').eq('warehouse_name', destWh).eq('product_name', product).maybeSingle();
-    if (destErr) throw destErr;
-    if (destData) {
-      const { error: updateDestErr } = await sb.from('inventory').update({
-        carton: num_(destData.carton) + retC,
-        piece: num_(destData.piece) + retP,
-        min_alert: minAlert,
-        updated_at: timestamp
-      }).eq('id', destData.id);
-      if (updateDestErr) throw updateDestErr;
-    } else {
-      const { error: insertDestErr } = await sb.from('inventory').insert({
-        warehouse_name: destWh, product_name: product, carton: retC, piece: retP, min_alert: minAlert, updated_at: timestamp
-      });
-      if (insertDestErr) throw insertDestErr;
-    }
-    const { error: logErr } = await sb.from('returns_log').insert({
-      warehouse_name: destWh,
-      product_name: product,
-      carton: retC,
-      piece: retP,
-      created_at: timestamp
-    });
-    if (logErr) throw logErr;
+    // RPC ذرّي واحد بيتأكد من كفاية الرصيد ويخصم من المرسل ويضيف للمستلم ويسجل في returns_log كلها sameمعاملة واحدة
+    const { error } = await withRetry(() => sb.rpc('rpc_transfer_return', {
+      p_src_wh: srcWh, p_dest_wh: destWh, p_product: product,
+      p_carton: retC, p_piece: retP, p_min_alert: minAlert
+    }));
+    if (error) throw new Error(error.message || "فشل تنفيذ عملية نقل المرتجع");
     toast("تم نقل المرتجع بنجاح (خصم من المرسل وإضافة للمستلم)");
     await refreshDataOnly();
   } catch (e) { errH(e); }
 }
 
+/* ============ سجل حركة المخزون (توريدات سابقة) — بحث خفيف بالـ cursor pagination ============ */
+// ملحوظة: هذا القسم يعتمد على جدول inventory_log الذي يجب إنشاؤه في قاعدة البيانات (انظر ملف SQL المرفق).
+// الاستعلامات هنا كلها مفلترة بمخزن + مؤشر زمني (created_at) ومحدودة بـ limit، فتفضل سريعة حتى مع آلاف الصفوف
+// لأنها لا تجيب كل السجل التاريخي أبداً — فقط آخر صف مطلوب أو نطاق يوم واحد.
+let invLogCursor = null;
+let invLogWarehouseCtx = null;
+
+async function showLatestInvLog() {
+  const wh = document.getElementById('log-wh').value;
+  if (!wh) return toast("اختر مخزناً", true);
+  showL();
+  try {
+    const { data, error } = await withRetry(() => sb.from('inventory_log').select('*').eq('warehouse_name', wh).order('created_at', { ascending: false }).limit(1));
+    if (error) throw error;
+    hideL();
+    invLogWarehouseCtx = wh;
+    if (!data || !data.length) {
+      document.getElementById('log-current').innerHTML = '<p style="color:var(--muted); text-align:center;">لا يوجد سجل حركة لهذا المخزن بعد.</p>';
+      document.getElementById('log-prev-btn').style.display = 'none';
+      invLogCursor = null;
+      return;
+    }
+    renderInvLogEntry(data[0]);
+  } catch (e) { errH(e); }
+}
+
+function renderInvLogEntry(row) {
+  invLogCursor = row.created_at;
+  const cDelta = num_(row.carton_delta), pDelta = num_(row.piece_delta);
+  document.getElementById('log-current').innerHTML = `
+    <div class="card" style="max-width:100%; text-align:right;">
+      <div>🏭 <b>${esc(row.warehouse_name)}</b> — 📦 <b>${esc(row.product_name)}</b></div>
+      <div style="color:var(--muted); font-size:12px;">📅 ${new Date(row.created_at).toLocaleString('ar-EG')}</div>
+      <div>كرتونة: ${esc(row.carton_before)} ← ${esc(row.carton_after)} (${cDelta >= 0 ? '+' : ''}${esc(row.carton_delta)})</div>
+      <div>قطعة: ${esc(row.piece_before)} ← ${esc(row.piece_after)} (${pDelta >= 0 ? '+' : ''}${esc(row.piece_delta)})</div>
+    </div>`;
+  document.getElementById('log-prev-btn').style.display = 'block';
+}
+
+async function showPrevInvLog() {
+  if (!invLogCursor || !invLogWarehouseCtx) return;
+  showL();
+  try {
+    const { data, error } = await withRetry(() => sb.from('inventory_log').select('*').eq('warehouse_name', invLogWarehouseCtx).lt('created_at', invLogCursor).order('created_at', { ascending: false }).limit(1));
+    if (error) throw error;
+    hideL();
+    if (!data || !data.length) { toast("لا يوجد حركات أقدم من ذلك"); return; }
+    renderInvLogEntry(data[0]);
+  } catch (e) { errH(e); }
+}
+
+async function searchInvLogByDate() {
+  const wh = document.getElementById('log-wh').value;
+  const dt = document.getElementById('log-date').value;
+  if (!dt) return toast("اختر تاريخاً", true);
+  showL();
+  try {
+    const { startISO, endISO } = dayRangeISO(dt);
+    let q = sb.from('inventory_log').select('*').gte('created_at', startISO).lt('created_at', endISO).order('created_at', { ascending: false }).limit(300);
+    if (wh) q = q.eq('warehouse_name', wh);
+    const { data, error } = await withRetry(() => q);
+    if (error) throw error;
+    hideL();
+    const rows = data || [];
+    document.getElementById('log-date-results').innerHTML = rows.length ? `<table><thead><tr><th>الوقت</th><th>المخزن</th><th>المنتج</th><th>كرتونة</th><th>قطعة</th></tr></thead><tbody>${rows.map(r => {
+      const cd = num_(r.carton_delta), pd = num_(r.piece_delta);
+      return `<tr><td>${new Date(r.created_at).toLocaleTimeString('ar-EG')}</td><td>${esc(r.warehouse_name)}</td><td>${esc(r.product_name)}</td><td>${esc(r.carton_before)}←${esc(r.carton_after)} (${cd>=0?'+':''}${esc(r.carton_delta)})</td><td>${esc(r.piece_before)}←${esc(r.piece_after)} (${pd>=0?'+':''}${esc(r.piece_delta)})</td></tr>`;
+    }).join('')}</tbody></table>` : '<p style="text-align:center; color:var(--muted);">لا يوجد حركات في هذا اليوم</p>';
+  } catch (e) { errH(e); }
+}
+
+/* ============ بحث ومتابعة سجل المرتجعات — نفس مبدأ البحث الخفيف بالـ cursor ============ */
+let retLogCursor = null;
+let retLogWarehouseCtx = null;
+
+async function searchReturnsByDate() {
+  const dt = document.getElementById('ret-search-date').value;
+  if (!dt) return toast("اختر تاريخاً", true);
+  showL();
+  try {
+    const { startISO, endISO } = dayRangeISO(dt);
+    const { data, error } = await withRetry(() => sb.from('returns_log').select('*').gte('created_at', startISO).lt('created_at', endISO).order('created_at', { ascending: false }).limit(300));
+    if (error) throw error;
+    hideL();
+    const rows = (data || []).map(mapReturnRow);
+    document.getElementById('ret-date-results').innerHTML = rows.length ? rows.map(r => `<tr><td>${new Date(r.timestamp).toLocaleTimeString('ar-EG')}</td><td>${esc(r.warehouse)}</td><td>${esc(r.product)}</td><td>${esc(r.carton)}</td><td>${esc(r.piece)}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center">لا يوجد مرتجعات في هذا اليوم</td></tr>`;
+  } catch (e) { errH(e); }
+}
+
+async function showLatestReturn() {
+  const wh = document.getElementById('ret-log-wh').value;
+  if (!wh) return toast("اختر مخزناً", true);
+  showL();
+  try {
+    const { data, error } = await withRetry(() => sb.from('returns_log').select('*').eq('warehouse_name', wh).order('created_at', { ascending: false }).limit(1));
+    if (error) throw error;
+    hideL();
+    retLogWarehouseCtx = wh;
+    if (!data || !data.length) {
+      document.getElementById('ret-log-current').innerHTML = '<p style="color:var(--muted); text-align:center;">لا يوجد سجل مرتجعات لهذا المخزن بعد.</p>';
+      document.getElementById('ret-log-prev-btn').style.display = 'none';
+      retLogCursor = null;
+      return;
+    }
+    renderReturnLogEntry(data[0]);
+  } catch (e) { errH(e); }
+}
+
+function renderReturnLogEntry(row) {
+  retLogCursor = row.created_at;
+  document.getElementById('ret-log-current').innerHTML = `
+    <div class="card" style="max-width:100%; text-align:right;">
+      <div>🏭 <b>${esc(row.warehouse_name)}</b> — 📦 <b>${esc(row.product_name)}</b></div>
+      <div style="color:var(--muted); font-size:12px;">📅 ${new Date(row.created_at).toLocaleString('ar-EG')}</div>
+      <div>كرتونة مرتجعة: ${esc(row.carton)} — قطعة مرتجعة: ${esc(row.piece)}</div>
+    </div>`;
+  document.getElementById('ret-log-prev-btn').style.display = 'block';
+}
+
+async function showPrevReturn() {
+  if (!retLogCursor || !retLogWarehouseCtx) return;
+  showL();
+  try {
+    const { data, error } = await withRetry(() => sb.from('returns_log').select('*').eq('warehouse_name', retLogWarehouseCtx).lt('created_at', retLogCursor).order('created_at', { ascending: false }).limit(1));
+    if (error) throw error;
+    hideL();
+    if (!data || !data.length) { toast("لا يوجد مرتجعات أقدم من ذلك"); return; }
+    renderReturnLogEntry(data[0]);
+  } catch (e) { errH(e); }
+}
+
 /* ============ إدارة الفواتير (طباعة، PDF، تعديل، حذف) ============ */
-function searchDate() {
+async function searchDate() {
   const dt = document.getElementById('search-date').value;
   if (!dt) return;
-  const res = db.sales.filter(s => dateStr(s.timestamp) === dt);
+  showL();
+  let res = [];
+  try {
+    const { startISO, endISO } = dayRangeISO(dt);
+    const { data, error } = await withRetry(() => sb.from('sales').select('*').gte('created_at', startISO).lt('created_at', endISO).order('created_at', { ascending: false }).limit(2000));
+    if (error) throw error;
+    res = (data || []).map(mapSaleRow);
+  } catch (e) { hideL(); return errH(e); }
+  hideL();
   const groups = {};
   res.forEach(s => {
-    const key = new Date(s.timestamp).getTime() + '_' + s.client;
+    const key = invoiceKeyOf(s);
     if (!groups[key]) groups[key] = { timestamp: s.timestamp, client: s.client, warehouse: s.warehouse, totalInvoice: s.totalInvoice, paid: s.paid, invoiceDebt: s.invoiceDebt, items: [], phone: s.phone, gov: s.gov, agent: s.agent };
     groups[key].items.push(s);
   });
   currentInvoiceGroups = Object.values(groups).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
   document.getElementById('date-results').innerHTML = currentInvoiceGroups.length ? currentInvoiceGroups.map((g, idx) => `<tr>
     <td>${new Date(g.timestamp).toLocaleTimeString('ar-EG')}</td>
-    <td>${g.warehouse}</td>
-    <td>${g.client}</td>
-    <td>${g.items.map(i => `${i.product} (${i.carton}ك+${i.piece}ق)`).join('، ')}</td>
+    <td>${esc(g.warehouse)}</td>
+    <td>${esc(g.client)}</td>
+    <td>${g.items.map(i => `${esc(i.product)} (${esc(i.carton)}ك+${esc(i.piece)}ق)`).join('، ')}</td>
     <td>${g.totalInvoice.toFixed(2)}</td>
     <td>${g.paid.toFixed(2)}</td>
     <td style="color:var(--danger)">${g.invoiceDebt.toFixed(2)}</td>
@@ -866,14 +1095,19 @@ function searchDate() {
 async function editInvoice(idx) {
   const group = currentInvoiceGroups[idx];
   if (!group) return;
-  const ok = await confirmModal(`سيتم تحميل فاتورة "${group.client}" في نموذج البيع للتعديل عليها. عند الحفظ، سيتم حذف الفاتورة القديمة واستبدالها بالجديدة. هل تريد المتابعة؟`);
+  const ok = await confirmModal(`سيتم تحميل فاتورة "${group.client}" في نموذج البيع للتعديل عليها. عند الضغط على "ترحيل الفاتورة"، سيتم حفظ الفاتورة الجديدة أولاً ثم حذف القديمة تلقائياً (فلن تفقد البيانات لو حصل قطع اتصال في المنتصف). هل تريد المتابعة؟`);
   if (!ok) return;
+  // بنحتفظ بمعرّفات الفاتورة القديمة، ومش هنحذفها إلا بعد ما الفاتورة الجديدة تتحفظ بنجاح في submitSales()
+  pendingEditSaleIds = group.items.map(i => i.id);
   document.getElementById('s-warehouse').value = group.warehouse;
   document.getElementById('s-client').value = group.client;
   document.getElementById('s-gov').value = group.gov || '';
   document.getElementById('s-phone').value = group.phone || '';
   document.getElementById('s-agent').value = group.agent || '';
   document.getElementById('s-paid').value = group.paid;
+  const gd = new Date(group.timestamp);
+  const pad = n => String(n).padStart(2, '0');
+  document.getElementById('s-invoice-date').value = `${gd.getFullYear()}-${pad(gd.getMonth()+1)}-${pad(gd.getDate())}T${pad(gd.getHours())}:${pad(gd.getMinutes())}`;
   document.getElementById('products-container').innerHTML = '';
   rCnt = 0;
   group.items.forEach(item => {
@@ -885,24 +1119,17 @@ async function editInvoice(idx) {
     document.getElementById(`prc-${currentId}`).value = item.price;
   });
   calcTotals();
-  showL();
-  try {
-    const ids = group.items.map(i => i.id);
-    const { error } = await sb.rpc('rpc_delete_invoice', { p_sale_ids: ids });
-    if (error) throw new Error(error.message || "فشل حذف الفاتورة القديمة");
-    toast("تم تحميل الفاتورة للتعديل. يرجى مراجعة البيانات ثم الضغط على 'ترحيل الفاتورة'");
-    await refreshDataOnly();
-    switchTab('sales', document.querySelector('.nav-btn'));
-  } catch (e) { errH(e); }
+  toast("تم تحميل الفاتورة للتعديل. عدّل البيانات ثم اضغط 'ترحيل الفاتورة' لحفظها (القديمة هتتحذف تلقائياً بعد نجاح الحفظ)");
+  switchTab('sales', document.querySelector('.nav-btn'));
 }
 
 function buildInvoiceHTML(g, dateFormatted) {
   const itemsRows = g.items.map((i, index) => `
     <tr>
       <td>${index + 1}</td>
-      <td style="text-align:right; padding-right:10px;">${i.product}</td>
-      <td>${i.carton}</td>
-      <td>${i.piece}</td>
+      <td style="text-align:right; padding-right:10px;">${esc(i.product)}</td>
+      <td>${esc(i.carton)}</td>
+      <td>${esc(i.piece)}</td>
       <td>${i.price.toFixed(2)}</td>
       <td>${((i.carton + i.piece) * i.price).toFixed(2)}</td>
     </tr>
@@ -912,17 +1139,17 @@ function buildInvoiceHTML(g, dateFormatted) {
     <div class="invoice-container">
       <div class="header">
         <h1>فاتورة مبيعات</h1>
-        <p class="date">التاريخ: ${dateFormatted}</p>
+        <p class="date">التاريخ: ${esc(dateFormatted)}</p>
       </div>
       <div class="info-section">
         <div class="info-row">
-          <div class="info-item"><strong>العميل:</strong> ${g.client}</div>
-          <div class="info-item"><strong>المخزن:</strong> ${g.warehouse}</div>
+          <div class="info-item"><strong>العميل:</strong> ${esc(g.client)}</div>
+          <div class="info-item"><strong>المخزن:</strong> ${esc(g.warehouse)}</div>
         </div>
         <div class="info-row">
-          <div class="info-item"><strong>المحافظة:</strong> ${g.gov || '-'}</div>
-          <div class="info-item"><strong>الهاتف:</strong> ${g.phone || '-'}</div>
-          <div class="info-item"><strong>المندوب:</strong> ${g.agent || '-'}</div>
+          <div class="info-item"><strong>المحافظة:</strong> ${esc(g.gov) || '-'}</div>
+          <div class="info-item"><strong>الهاتف:</strong> ${esc(g.phone) || '-'}</div>
+          <div class="info-item"><strong>المندوب:</strong> ${esc(g.agent) || '-'}</div>
         </div>
       </div>
       <table>
@@ -954,14 +1181,14 @@ function buildInvoiceHTML(g, dateFormatted) {
 
 function buildInvoicePageHTML(g, dateFormatted) {
   const invoiceContent = buildInvoiceHTML(g, dateFormatted);
-  const clientName = g.client.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-  const filename = `فاتورة_${g.client}_${dateFormatted.replace(/[^0-9]/g, '_')}`;
+  // اسم الملف بيتنضف من أي حروف ممكن تكسر اسم الملف أو الـJS string جوه html2pdf options
+  const filename = `فاتورة_${g.client}_${dateFormatted}`.replace(/[^ء-ي0-9a-zA-Z_]/g, '_');
   
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>فاتورة - ${g.client}</title>
+<title>فاتورة - ${esc(g.client)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; }
@@ -1048,7 +1275,7 @@ function exportInvoicePDF(idx) {
       else {
         const element = pdfWindow.document.getElementById('invoice-content');
         if (element && pdfWindow.html2pdf) {
-          const filename = `فاتورة_${g.client}_${dateFormatted.replace(/[^0-9]/g, '_')}.pdf`;
+          const filename = `فاتورة_${g.client}_${dateFormatted}`.replace(/[^ء-ي0-9a-zA-Z_]/g, '_') + '.pdf';
           const opt = { margin: [10, 10, 10, 10], filename: filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true } };
           pdfWindow.html2pdf().set(opt).from(element).save().then(() => { toast("تم تصدير PDF بنجاح ✓"); }).catch(err => { toast("فشل التصدير: " + err.message, true); });
         }
@@ -1065,7 +1292,7 @@ async function deleteInvoiceAt(idx) {
   showL();
   try {
     const ids = group.items.map(i => i.id);
-    const { error } = await sb.rpc('rpc_delete_invoice', { p_sale_ids: ids });
+    const { error } = await withRetry(() => sb.rpc('rpc_delete_invoice', { p_sale_ids: ids }));
     if (error) throw new Error(error.message || "فشل حذف الفاتورة");
     toast("تم حذف الفاتورة وإرجاع الكميات بنجاح");
     await refreshDataOnly();
@@ -1081,9 +1308,9 @@ async function deleteWarehouse() {
   if (!ok) return;
   showL();
   try {
-    const { error: invErr } = await sb.from('inventory').delete().eq('warehouse_name', name);
+    const { error: invErr } = await withRetry(() => sb.from('inventory').delete().eq('warehouse_name', name));
     if (invErr) throw invErr;
-    const { error: whErr } = await sb.from('warehouses').delete().eq('name', name);
+    const { error: whErr } = await withRetry(() => sb.from('warehouses').delete().eq('name', name));
     if (whErr) throw whErr;
     toast("تم حذف المخزن بنجاح");
     closeModal('modal-delwh');
@@ -1098,7 +1325,7 @@ async function deleteProduct() {
   if (!ok) return;
   showL();
   try {
-    const { error } = await sb.from('inventory').delete().eq('product_name', name);
+    const { error } = await withRetry(() => sb.from('inventory').delete().eq('product_name', name));
     if (error) throw error;
     toast("تم حذف المنتج من كل المخازن بنجاح");
     closeModal('modal-delprod');
@@ -1114,10 +1341,18 @@ function updateTotalDebt() {
 
 let currentClientSearched = "";
 let currentClientDebt = 0;
-function searchClient() {
+async function searchClient() {
   const cName = document.getElementById('c-search-input').value.trim();
+  if (!cName) return toast("اكتب اسم العميل", true);
   const cData = db.clients.find(c => c.name === cName);
-  const cSales = db.sales.filter(s => s.client === cName);
+  showL();
+  let cSales = [];
+  try {
+    const { data, error } = await withRetry(() => sb.from('sales').select('*').eq('client_name', cName).order('created_at', { ascending: false }));
+    if (error) throw error;
+    cSales = (data || []).map(mapSaleRow);
+  } catch (e) { hideL(); return errH(e); }
+  hideL();
   if (!cData && !cSales.length) return toast("العميل غير موجود", true);
   currentClientSearched = cName;
   currentClientDebt = cData ? cData.debt : 0;
@@ -1135,14 +1370,13 @@ function searchClient() {
   document.getElementById('c-max-p').textContent = mx ? `${mx} (${mxV})` : '-';
   document.getElementById('c-min-p').textContent = mn ? `${mn} (${mnV})` : '-';
   if (cSales.length) {
-    let lastTs = cSales[0].timestamp;
-    cSales.forEach(s => { if (new Date(s.timestamp) > new Date(lastTs)) lastTs = s.timestamp; });
-    const lastLines = cSales.filter(s => new Date(s.timestamp).getTime() === new Date(lastTs).getTime());
+    const lastKey = invoiceKeyOf(cSales[0]); // cSales مرتبة تنازلياً حسب التاريخ، فأول عنصر هو الأحدث
+    const lastLines = cSales.filter(s => invoiceKeyOf(s) === lastKey);
     const first = lastLines[0];
     document.getElementById('c-last-invoice').innerHTML = `
-      <div>📅 ${new Date(lastTs).toLocaleString('ar-EG')}</div>
-      <div>🏭 المخزن: ${first.warehouse}</div>
-      <div> الأصناف: ${lastLines.map(l => `${l.product} (${l.carton}ك+${l.piece}ق)`).join('، ')}</div>
+      <div>📅 ${new Date(first.timestamp).toLocaleString('ar-EG')}</div>
+      <div>🏭 المخزن: ${esc(first.warehouse)}</div>
+      <div> الأصناف: ${lastLines.map(l => `${esc(l.product)} (${esc(l.carton)}ك+${esc(l.piece)}ق)`).join('، ')}</div>
       <div>💰 الإجمالي: ${first.totalInvoice.toFixed(2)} | المدفوع: ${first.paid.toFixed(2)} | مديونية الفاتورة: ${first.invoiceDebt.toFixed(2)}</div>
     `;
   } else {
@@ -1151,19 +1385,12 @@ function searchClient() {
 }
 
 function buildClientsTable() {
-  const productsByClient = {};
-  db.sales.forEach(s => {
-    if (!productsByClient[s.client]) productsByClient[s.client] = {};
-    productsByClient[s.client][s.product] = (productsByClient[s.client][s.product]||0) + s.carton + s.piece;
-  });
+  // ملحوظة: عمود "أكثر منتج اشتراه" اتشال من هنا لأنه كان محتاج يمسح كل صفوف المبيعات لكل عميل — ده أبطأ الجدول بشكل متزايد
+  // كل ما البيانات تكبر. البيانات دي لسه متاحة وبسرعة لما تدور على عميل بعينه في خانة البحث فوق.
   document.getElementById('clients-tbody').innerHTML = db.clients.length ? db.clients.map(c => {
-    const pc = productsByClient[c.name] || {};
-    let fav = '-', favV = -1;
-    for (let p in pc) if (pc[p] > favV) { favV = pc[p]; fav = p; }
     const firstDateStr = c.firstDate ? new Date(c.firstDate).toLocaleDateString('ar-EG') : '-';
-    const safeName = c.name.replace(/'/g, "\\'");
-    return `<tr><td>${c.name}</td><td>${firstDateStr}</td><td>${c.totalPurchases.toFixed(2)}</td><td style="color:${c.debt>0?'var(--danger)':'var(--success)'}">${c.debt.toFixed(2)}</td><td>${fav}${favV>0?` (${favV})`:''}</td><td><button class="btn-danger" style="width:auto; margin:0; padding:6px 12px; font-size:12px;" onclick="deleteClient('${safeName}', ${c.debt})">🗑️ حذف</button></td></tr>`;
-  }).join('') : `<tr><td colspan="6" style="text-align:center">لا يوجد عملاء مسجلين بعد</td></tr>`;
+    return `<tr><td>${esc(c.name)}</td><td>${firstDateStr}</td><td>${c.totalPurchases.toFixed(2)}</td><td style="color:${c.debt>0?'var(--danger)':'var(--success)'}">${c.debt.toFixed(2)}</td><td><button class="btn-danger" style="width:auto; margin:0; padding:6px 12px; font-size:12px;" onclick="deleteClient('${escAttr(c.name)}', ${c.debt})">🗑️ حذف</button></td></tr>`;
+  }).join('') : `<tr><td colspan="5" style="text-align:center">لا يوجد عملاء مسجلين بعد</td></tr>`;
 }
 
 /* ============ إدارة مديونية العميل (دفعة / تعديل يدوي) وحذف العميل ============ */
@@ -1175,9 +1402,12 @@ async function registerClientPayment() {
   if (!ok) return;
   showL();
   try {
-    const newDebt = currentClientDebt - amount;
-    const { error } = await sb.from('clients').update({ debt: newDebt }).eq('name', currentClientSearched);
-    if (error) throw error;
+    // بنستخدم RPC ذرّي بيخصم من القيمة الحالية في قاعدة البيانات مباشرة (مش من القيمة المحفوظة محلياً)
+    // عشان لو المديونية اتغيّرت من جهاز تاني بين البحث والحفظ، الخصم يحصل صح على القيمة الحقيقية
+    const { error } = await withRetry(() => sb.rpc('rpc_register_payment', {
+      p_client_name: currentClientSearched, p_amount: amount
+    }));
+    if (error) throw new Error(error.message || "فشل تسجيل الدفعة");
     toast("تم تسجيل الدفعة وتحديث المديونية بنجاح");
     await refreshDataOnly();
     document.getElementById('c-search-input').value = currentClientSearched;
@@ -1193,7 +1423,7 @@ async function editClientDebtManual() {
   if (!ok) return;
   showL();
   try {
-    const { error } = await sb.from('clients').update({ debt: newDebt }).eq('name', currentClientSearched);
+    const { error } = await withRetry(() => sb.from('clients').update({ debt: newDebt }).eq('name', currentClientSearched));
     if (error) throw error;
     toast("تم تعديل المديونية يدوياً بنجاح");
     await refreshDataOnly();
@@ -1213,7 +1443,7 @@ async function deleteClient(name, debt) {
   if (!ok) return;
   showL();
   try {
-    const { error } = await sb.from('clients').delete().eq('name', name);
+    const { error } = await withRetry(() => sb.from('clients').delete().eq('name', name));
     if (error) throw error;
     toast("تم حذف العميل بنجاح");
     document.getElementById('c-profile').style.display = 'none';
@@ -1229,34 +1459,48 @@ function resetTodayToNow() {
   buildToday();
 }
 
-function buildToday() {
+async function buildToday() {
   const pickerVal = document.getElementById('td-date-picker').value;
   const targetDateStr = pickerVal ? pickerVal : dateStr(new Date());
-  const tS = db.sales.filter(s => dateStr(s.timestamp) === targetDateStr);
-  const tR = db.returns.filter(r => dateStr(r.timestamp) === targetDateStr);
+  showL();
+  let tS = [], tR = [];
+  try {
+    const { startISO, endISO } = dayRangeISO(targetDateStr);
+    const [salesRes, returnsRes] = await Promise.all([
+      withRetry(() => sb.from('sales').select('*').gte('created_at', startISO).lt('created_at', endISO)),
+      withRetry(() => sb.from('returns_log').select('*').gte('created_at', startISO).lt('created_at', endISO))
+    ]);
+    if (salesRes.error) throw salesRes.error;
+    if (returnsRes.error) throw returnsRes.error;
+    tS = (salesRes.data || []).map(mapSaleRow);
+    tR = (returnsRes.data || []).map(mapReturnRow);
+  } catch (e) { hideL(); return errH(e); }
+  hideL();
   let sMoney = 0; tS.forEach(s => sMoney += s.lineDue);
-  const invoiceKeys = new Set(tS.map(s => new Date(s.timestamp).getTime() + '_' + s.client));
+  const invoiceKeys = new Set(tS.map(invoiceKeyOf));
   let rQty = 0; tR.forEach(r => rQty += r.carton + r.piece);
   document.getElementById('td-sales-val').textContent = sMoney.toFixed(2);
   document.getElementById('td-sales-cnt').textContent = invoiceKeys.size;
   document.getElementById('td-ret-cnt').textContent = rQty;
   const ops = [];
-  tS.forEach(s => ops.push({ time: s.timestamp, type: 'بيع', detail: `${s.client} — ${s.product} (${s.carton}ك+${s.piece}ق) — ${s.warehouse}`, value: s.lineDue.toFixed(2) }));
-  tR.forEach(r => ops.push({ time: r.timestamp, type: 'مرتجع', detail: `${r.product} (${r.carton}ك+${r.piece}ق) — إلى ${r.warehouse}`, value: '-' }));
+  tS.forEach(s => ops.push({ time: s.timestamp, type: 'بيع', detail: `${esc(s.client)} — ${esc(s.product)} (${esc(s.carton)}ك+${esc(s.piece)}ق) — ${esc(s.warehouse)}`, value: s.lineDue.toFixed(2) }));
+  tR.forEach(r => ops.push({ time: r.timestamp, type: 'مرتجع', detail: `${esc(r.product)} (${esc(r.carton)}ك+${esc(r.piece)}ق) — إلى ${esc(r.warehouse)}`, value: '-' }));
   ops.sort((a,b) => new Date(b.time) - new Date(a.time));
   document.getElementById('td-ops-tbody').innerHTML = ops.length ? ops.map(o => `<tr><td>${new Date(o.time).toLocaleTimeString('ar-EG')}</td><td style="color:${o.type==='بيع'?'var(--success)':'var(--danger)'}">${o.type}</td><td>${o.detail}</td><td>${o.value}</td></tr>`).join('') : `<tr><td colspan="4" style="text-align:center">لا يوجد عمليات في هذا اليوم</td></tr>`;
   const byProduct = {};
   tS.forEach(s => { byProduct[s.product] = (byProduct[s.product]||0) + s.carton + s.piece; });
-  const rows = Object.keys(byProduct).map(p => `<tr><td>${p}</td><td>${byProduct[p]}</td><td>${targetDateStr}</td></tr>`);
+  const rows = Object.keys(byProduct).map(p => `<tr><td>${esc(p)}</td><td>${byProduct[p]}</td><td>${targetDateStr}</td></tr>`);
   document.getElementById('td-products-tbody').innerHTML = rows.length ? rows.join('') : `<tr><td colspan="3" style="text-align:center">لا يوجد مبيعات في هذا اليوم</td></tr>`;
 }
 
 /* ============ تحليلات الشهر والسنة ============ */
 function populateYears() {
-  const years = new Set(db.sales.map(s => new Date(s.timestamp).getFullYear()));
-  years.add(new Date().getFullYear());
-  const sorted = Array.from(years).sort((a,b)=>b-a);
-  document.getElementById('an-year').innerHTML = sorted.map(y => `<option value="${y}">${y}</option>`).join('');
+  // من غير ما نجيب كل المبيعات بس عشان نعرف السنين المتاحة، بنعرض نطاق ثابت معقول (السنة الحالية + آخر ٦ سنين)
+  // لو مفيش بيانات لسنة معينة، buildAnalytics هيوضح "لا يوجد بيانات لهذه الفترة" وهي عملية رخيصة (استعلام سنة واحدة بس)
+  const currentYear = new Date().getFullYear();
+  const years = [];
+  for (let y = currentYear; y >= currentYear - 6; y--) years.push(y);
+  document.getElementById('an-year').innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
 }
 
 function topN(obj, n, asc) {
@@ -1264,14 +1508,24 @@ function topN(obj, n, asc) {
 }
 
 function renderList(id, arr, isMoney) {
-  document.getElementById(id).innerHTML = arr.length ? arr.map((e,i) => `<tr><td>${i+1}</td><td>${e[0]}</td><td>${isMoney? Number(e[1]).toFixed(2) : e[1]}</td></tr>`).join('') : `<tr><td colspan="3" style="text-align:center">-</td></tr>`;
+  document.getElementById(id).innerHTML = arr.length ? arr.map((e,i) => `<tr><td>${i+1}</td><td>${esc(e[0])}</td><td>${isMoney? Number(e[1]).toFixed(2) : e[1]}</td></tr>`).join('') : `<tr><td colspan="3" style="text-align:center">-</td></tr>`;
 }
 
-function buildAnalytics() {
+async function buildAnalytics() {
   const year = Number(document.getElementById('an-year').value);
   const monthVal = document.getElementById('an-month').value;
   const month = monthVal ? Number(monthVal) : null;
-  const yearSales = db.sales.filter(s => new Date(s.timestamp).getFullYear() === year);
+  showL();
+  let yearSales = [];
+  try {
+    // بنجيب سنة واحدة بس من قاعدة البيانات (مش كل السجل التاريخي)، فالاستعلام ده هيفضل سريع حتى بعد سنين من الاستخدام
+    const startISO = new Date(year, 0, 1).toISOString();
+    const endISO = new Date(year + 1, 0, 1).toISOString();
+    const { data, error } = await withRetry(() => sb.from('sales').select('*').gte('created_at', startISO).lt('created_at', endISO));
+    if (error) throw error;
+    yearSales = (data || []).map(mapSaleRow);
+  } catch (e) { hideL(); return errH(e); }
+  hideL();
   const periodSales = month ? yearSales.filter(s => new Date(s.timestamp).getMonth()+1 === month) : yearSales;
   if (!periodSales.length) {
     document.getElementById('an-empty').style.display = 'block';
@@ -1286,7 +1540,7 @@ function buildAnalytics() {
   const byProduct = {}, byGov = {}, byClient = {};
   periodSales.forEach(s => {
     totalSales += s.lineDue;
-    invoiceSet.add(new Date(s.timestamp).getTime() + '_' + s.client);
+    invoiceSet.add(invoiceKeyOf(s));
     byProduct[s.product] = (byProduct[s.product]||0) + s.carton + s.piece;
     if (s.gov) byGov[s.gov] = (byGov[s.gov]||0) + s.lineDue;
     byClient[s.client] = (byClient[s.client]||0) + s.lineDue;
@@ -1327,10 +1581,9 @@ function saveStoredAgent(name) {
   } catch (e) {}
 }
 function populateAgentsDatalist() {
-  const fromSales = (db.sales || []).map(s => s.agent).filter(Boolean);
-  const all = new Set([...fromSales, ...getStoredAgents()]);
+  // مصدر أسماء المندوبين بقى localStorage بس (مش db.sales اللي بقت فاضية بعد تحسين الأداء)
   const dl = document.getElementById('agents-datalist');
-  if (dl) dl.innerHTML = Array.from(all).map(a => `<option value="${a.replace(/"/g,'&quot;')}"></option>`).join('');
+  if (dl) dl.innerHTML = getStoredAgents().map(a => `<option value="${esc(a)}"></option>`).join('');
 }
 
 /* ============ تطابق أسماء العملاء الذكي ============ */
@@ -1373,16 +1626,18 @@ function checkClientNameSimilarity() {
   db.clients.forEach(c => {
     const cNorm = normalizeArabicName(c.name);
     if (cNorm === norm) { best = c.name; bestDist = 0; return; }
+    // فحص فرق الطول (رخيص) الأول قبل حساب Edit Distance (الأغلى)، عشان نتفادى حساب مش لازم على عدد كبير من العملاء
+    if (Math.abs(norm.length - cNorm.length) > 2) return;
     const dist = editDistance(norm, cNorm);
-    if (dist <= 1 && Math.abs(norm.length - cNorm.length) <= 2 && dist < bestDist) {
+    if (dist <= 1 && dist < bestDist) {
       best = c.name; bestDist = dist;
     }
   });
   const box = document.getElementById('client-name-warning');
   if (best) {
     box.style.display = 'block';
-    box.innerHTML = `⚠️ فيه عميل مسجل بالفعل باسم قريب جداً: <b>"${best}"</b>. 
-      <button type="button" onclick="useClientName('${best.replace(/'/g,"\\'")}')" style="width:auto; display:inline-block; margin:8px 0 0; padding:6px 14px; font-size:12px;">استخدام الاسم المسجل</button>`;
+    box.innerHTML = `⚠️ فيه عميل مسجل بالفعل باسم قريب جداً: <b>"${esc(best)}"</b>. 
+      <button type="button" onclick="useClientName('${escAttr(best)}')" style="width:auto; display:inline-block; margin:8px 0 0; padding:6px 14px; font-size:12px;">استخدام الاسم المسجل</button>`;
   } else {
     hideClientWarning();
   }
@@ -1399,15 +1654,15 @@ async function saveWh() {
   if (!name) return;
   showL();
   try {
-    const { data: existing, error: eErr } = await sb.from('warehouses').select('id').eq('name', name).maybeSingle();
+    const { data: existing, error: eErr } = await withRetry(() => sb.from('warehouses').select('id').eq('name', name).maybeSingle());
     if (eErr) throw eErr;
     if (existing) throw new Error("المخزن مسجل بالفعل.");
-    const { error } = await sb.from('warehouses').insert({ name, code: 'wh_' + Date.now() });
+    const { error } = await withRetry(() => sb.from('warehouses').insert({ name, code: 'wh_' + Date.now() }));
     if (error) throw error;
     const timestamp = new Date().toISOString();
     const rows = db.products.map(p => ({ warehouse_name: name, product_name: p, carton: 0, piece: 0, min_alert: 10, updated_at: timestamp }));
     if (rows.length) {
-      const { error: iErr } = await sb.from('inventory').insert(rows);
+      const { error: iErr } = await withRetry(() => sb.from('inventory').insert(rows));
       if (iErr) throw iErr;
     }
     closeModal('modal-wh');
@@ -1429,7 +1684,7 @@ async function saveProd() {
       carton: w.name === MAIN_WH ? carton : 0, piece: w.name === MAIN_WH ? piece : 0,
       min_alert: 10, updated_at: timestamp
     }));
-    const { error } = await sb.from('inventory').insert(rows);
+    const { error } = await withRetry(() => sb.from('inventory').insert(rows));
     if (error) throw error;
     closeModal('modal-prod');
     document.getElementById('new-pr').value = '';
@@ -1445,10 +1700,10 @@ async function saveCust() {
   if (!name) return;
   showL();
   try {
-    const { data: existing, error: eErr } = await sb.from('clients').select('id').eq('name', name).maybeSingle();
+    const { data: existing, error: eErr } = await withRetry(() => sb.from('clients').select('id').eq('name', name).maybeSingle());
     if (eErr) throw eErr;
     if (existing) throw new Error("العميل مسجل بالفعل.");
-    const { error } = await sb.from('clients').insert({ name, total_purchases: 0, debt, first_date: new Date().toISOString() });
+    const { error } = await withRetry(() => sb.from('clients').insert({ name, total_purchases: 0, debt, first_date: new Date().toISOString() }));
     if (error) throw error;
     closeModal('modal-cust');
     document.getElementById('new-cu').value = '';
