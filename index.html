@@ -162,13 +162,13 @@
       <!-- عمود سجل حركة المخزون (توريدات وتعديلات) -->
       <div class="card">
         <h3 style="color:var(--accent); margin-bottom:15px;">📜 سجل حركة المخزون (توريدات سابقة)</h3>
-        <p style="color:var(--muted); font-size:12px; margin-bottom:10px;">يعرض كل تغييرات الرصيد (توريد، تعديل يدوي، مرتجع) لكل مخزن، الأحدث أولاً.</p>
+        <p style="color:var(--muted); font-size:12px; margin-bottom:10px;">يعرض فقط عمليات التوريد (الإضافة للمخزون) لكل مخزن، الأحدث أولاً — ولا يشمل عمليات الخصم من المبيعات.</p>
         <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
           <div><label>المخزن</label><select id="log-wh"></select></div>
           <div><label>بحث بتاريخ معيّن</label><input type="date" id="log-date"></div>
         </div>
         <div class="btn-group">
-          <button onclick="showLatestInvLog()">📌 عرض آخر حركة</button>
+          <button onclick="showLatestInvLog()">📌 عرض آخر توريد</button>
           <button onclick="searchInvLogByDate()">🔍 بحث بالتاريخ</button>
         </div>
         <div id="log-current" style="margin-top:12px;"></div>
@@ -989,6 +989,8 @@ async function submitReturn() {
 // ملحوظة: هذا القسم يعتمد على جدول inventory_log الذي يجب إنشاؤه في قاعدة البيانات (انظر ملف SQL المرفق).
 // الاستعلامات هنا كلها مفلترة بمخزن + مؤشر زمني (created_at) ومحدودة بـ limit، فتفضل سريعة حتى مع آلاف الصفوف
 // لأنها لا تجيب كل السجل التاريخي أبداً — فقط آخر صف مطلوب أو نطاق يوم واحد.
+// ملحوظة مهمة: الفلتر .or('carton_delta.gt.0,piece_delta.gt.0') بيخلي الشاشة دي تعرض فقط عمليات
+// الإضافة (توريد / تعديل يدوي بالزيادة) ومتعرضش عمليات الخصم (بيع، تراجع عن توريد، إلخ) لأن دي مش المقصودة هنا.
 let invLogCursor = null;
 let invLogWarehouseCtx = null;
 
@@ -997,12 +999,12 @@ async function showLatestInvLog() {
   if (!wh) return toast("اختر مخزناً", true);
   showL();
   try {
-    const { data, error } = await withRetry(() => sb.from('inventory_log').select('*').eq('warehouse_name', wh).order('created_at', { ascending: false }).limit(1));
+    const { data, error } = await withRetry(() => sb.from('inventory_log').select('*').eq('warehouse_name', wh).or('carton_delta.gt.0,piece_delta.gt.0').order('created_at', { ascending: false }).limit(1));
     if (error) throw error;
     hideL();
     invLogWarehouseCtx = wh;
     if (!data || !data.length) {
-      document.getElementById('log-current').innerHTML = '<p style="color:var(--muted); text-align:center;">لا يوجد سجل حركة لهذا المخزن بعد.</p>';
+      document.getElementById('log-current').innerHTML = '<p style="color:var(--muted); text-align:center;">لا يوجد توريدات (إضافات) مسجلة لهذا المخزن بعد.</p>';
       document.getElementById('log-prev-btn').style.display = 'none';
       invLogCursor = null;
       return;
@@ -1028,10 +1030,10 @@ async function showPrevInvLog() {
   if (!invLogCursor || !invLogWarehouseCtx) return;
   showL();
   try {
-    const { data, error } = await withRetry(() => sb.from('inventory_log').select('*').eq('warehouse_name', invLogWarehouseCtx).lt('created_at', invLogCursor).order('created_at', { ascending: false }).limit(1));
+    const { data, error } = await withRetry(() => sb.from('inventory_log').select('*').eq('warehouse_name', invLogWarehouseCtx).or('carton_delta.gt.0,piece_delta.gt.0').lt('created_at', invLogCursor).order('created_at', { ascending: false }).limit(1));
     if (error) throw error;
     hideL();
-    if (!data || !data.length) { toast("لا يوجد حركات أقدم من ذلك"); return; }
+    if (!data || !data.length) { toast("لا يوجد توريدات أقدم من ذلك"); return; }
     renderInvLogEntry(data[0]);
   } catch (e) { errH(e); }
 }
@@ -1043,7 +1045,7 @@ async function searchInvLogByDate() {
   showL();
   try {
     const { startISO, endISO } = dayRangeISO(dt);
-    let q = sb.from('inventory_log').select('*').gte('created_at', startISO).lt('created_at', endISO).order('created_at', { ascending: false }).limit(300);
+    let q = sb.from('inventory_log').select('*').gte('created_at', startISO).lt('created_at', endISO).or('carton_delta.gt.0,piece_delta.gt.0').order('created_at', { ascending: false }).limit(300);
     if (wh) q = q.eq('warehouse_name', wh);
     const { data, error } = await withRetry(() => q);
     if (error) throw error;
@@ -1052,7 +1054,7 @@ async function searchInvLogByDate() {
     document.getElementById('log-date-results').innerHTML = rows.length ? `<table><thead><tr><th>الوقت</th><th>المخزن</th><th>المنتج</th><th>كرتونة</th><th>قطعة</th></tr></thead><tbody>${rows.map(r => {
       const cd = num_(r.carton_delta), pd = num_(r.piece_delta);
       return `<tr><td>${new Date(r.created_at).toLocaleTimeString('ar-EG')}</td><td>${esc(r.warehouse_name)}</td><td>${esc(r.product_name)}</td><td>${esc(r.carton_before)}←${esc(r.carton_after)} (${cd>=0?'+':''}${esc(r.carton_delta)})</td><td>${esc(r.piece_before)}←${esc(r.piece_after)} (${pd>=0?'+':''}${esc(r.piece_delta)})</td></tr>`;
-    }).join('')}</tbody></table>` : '<p style="text-align:center; color:var(--muted);">لا يوجد حركات في هذا اليوم</p>';
+    }).join('')}</tbody></table>` : '<p style="text-align:center; color:var(--muted);">لا يوجد توريدات (إضافات) في هذا اليوم</p>';
   } catch (e) { errH(e); }
 }
 
