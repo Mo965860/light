@@ -268,6 +268,17 @@
       </div>
       <div id="c-profile" style="display:none; margin-top:20px;">
         <h4 id="c-name" style="margin-bottom:10px;"></h4>
+        <div class="btn-group" style="margin-bottom:10px;">
+          <button class="btn-ghost" onclick="startEditClientName()">✏️ تعديل اسم العميل</button>
+        </div>
+        <div id="c-name-edit-box" style="display:none; margin-bottom:15px; text-align:right;">
+          <label>الاسم الجديد</label>
+          <input type="text" id="c-name-new">
+          <div class="btn-group">
+            <button onclick="saveClientNameEdit()">💾 حفظ الاسم الجديد</button>
+            <button class="btn-ghost" onclick="cancelEditClientName()">إلغاء</button>
+          </div>
+        </div>
         <div class="grid">
           <div class="stat-box">إجمالي المشتريات<div class="stat-val" id="c-total-spend">0</div></div>
           <div class="stat-box">المديونية الكلية<div class="stat-val" id="c-debt" style="color:var(--danger)">0</div></div>
@@ -277,6 +288,27 @@
         </div>
         <h4> آخر فاتورة للعميل</h4>
         <div class="card" id="c-last-invoice" style="text-align:right; max-width:100%;">-</div>
+
+        <h4>🧾 فواتير العميل حسب الفترة</h4>
+        <div class="card" style="max-width:100%; text-align:right;">
+          <div style="text-align:center; color:var(--accent2); font-weight:bold; margin-bottom:10px;" id="c-inv-period-label">-</div>
+          <div class="btn-group">
+            <button class="btn-ghost" onclick="clientPrevMonth()">⬅️ الشهر السابق</button>
+            <button class="btn-ghost" onclick="clientNextMonth()">الشهر التالي ➡️</button>
+          </div>
+          <hr style="border-color:var(--border); margin:15px 0;">
+          <div class="grid-2">
+            <div><label>بحث بفترة مخصصة — من</label><input type="date" id="c-inv-from"></div>
+            <div><label>إلى</label><input type="date" id="c-inv-to"></div>
+          </div>
+          <button onclick="searchClientInvoicesByDateRange()">🔍 بحث في هذه الفترة</button>
+          <div style="overflow-x:auto; margin-top:10px;">
+            <table>
+              <thead><tr><th>الوقت</th><th>المخزن</th><th>الأصناف</th><th>الإجمالي</th><th>مدفوع</th><th>مديونية</th><th>إجراءات</th></tr></thead>
+              <tbody id="c-invoices-tbody"><tr><td colspan="7" style="text-align:center">-</td></tr></tbody>
+            </table>
+          </div>
+        </div>
 
         <h4>💰 إدارة مديونية العميل</h4>
         <div class="card" style="max-width:100%;">
@@ -293,6 +325,14 @@
             </div>
           </div>
           <button class="btn-ghost-danger" style="width:100%; margin-top:15px;" onclick="deleteClient(currentClientSearched, currentClientDebt)">🗑️ حذف هذا العميل نهائياً</button>
+        </div>
+
+        <h4>💳 سجل الدفعات المسجلة لهذا العميل</h4>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>التاريخ والوقت</th><th>القيمة</th></tr></thead>
+            <tbody id="c-payments-tbody"><tr><td colspan="2" style="text-align:center">-</td></tr></tbody>
+          </table>
         </div>
       </div>
       <hr style="border-color:var(--border); margin:20px 0;">
@@ -337,6 +377,28 @@
   </div>
 
   <div id="tab-analytics" class="panel">
+    <div class="card">
+      <h3 style="color:var(--accent)">🔎 إجمالي مبيعات منتج معيّن</h3>
+      <div class="grid">
+        <div><label>المنتج</label><select id="pt-product"></select></div>
+        <div><label>نوع الفترة</label><select id="pt-type" onchange="onPtTypeChange()">
+          <option value="day">يوم معيّن</option>
+          <option value="month">شهر معيّن</option>
+          <option value="year">سنة كاملة</option>
+        </select></div>
+      </div>
+      <div class="grid">
+        <div id="pt-day-box"><label>التاريخ</label><input type="date" id="pt-date"></div>
+        <div id="pt-month-box" style="display:none;"><label>الشهر</label><select id="pt-month">
+          <option value="1">يناير</option><option value="2">فبراير</option><option value="3">مارس</option><option value="4">أبريل</option>
+          <option value="5">مايو</option><option value="6">يونيو</option><option value="7">يوليو</option><option value="8">أغسطس</option>
+          <option value="9">سبتمبر</option><option value="10">أكتوبر</option><option value="11">نوفمبر</option><option value="12">ديسمبر</option>
+        </select></div>
+        <div id="pt-year-box" style="display:none;"><label>السنة</label><select id="pt-year"></select></div>
+        <div style="display:flex; align-items:end;"><button onclick="calcProductTotals()">احسب الإجمالي</button></div>
+      </div>
+      <div id="pt-result" style="margin-top:15px;"></div>
+    </div>
     <div class="card">
       <h3 style="color:var(--accent)">📊 تحليل بيانات الشهر والسنة</h3>
       <div class="grid">
@@ -605,6 +667,7 @@ function refreshUI() {
   document.getElementById('inv-prod').innerHTML = prOpts;
   document.getElementById('ret-prod').innerHTML = prOpts;
   document.getElementById('stk-prod').innerHTML = prOpts;
+  document.getElementById('pt-product').innerHTML = prOpts;
   document.getElementById('del-pr-select').innerHTML = db.products.map(p => `<option>${esc(p)}</option>`).join('') || '<option value="">لا يوجد منتجات</option>';
   document.querySelectorAll('.pr-sel').forEach(el => { const v=el.value; el.innerHTML=prOpts; el.value=v; });
   document.getElementById('clients-datalist').innerHTML = db.clients.map(c => `<option value="${esc(c.name)}"></option>`).join('');
@@ -1054,6 +1117,19 @@ async function showPrevReturn() {
 }
 
 /* ============ إدارة الفواتير (طباعة، PDF، تعديل، حذف) ============ */
+// دالة مشتركة لتجميع صفوف المبيعات (sales) لفواتير — تُستخدم في بحث المبيعات بتاريخ وفي فواتير العميل
+function groupSalesIntoInvoices(rows) {
+  const groups = {};
+  rows.forEach(s => {
+    const key = invoiceKeyOf(s);
+    if (!groups[key]) groups[key] = { timestamp: s.timestamp, client: s.client, warehouse: s.warehouse, totalInvoice: s.totalInvoice, paid: s.paid, invoiceDebt: s.invoiceDebt, items: [], phone: s.phone, gov: s.gov, agent: s.agent };
+    groups[key].items.push(s);
+  });
+  return Object.values(groups).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+// دالة تُستدعى لإعادة تحميل آخر جدول فواتير كان معروضاً (بحث بتاريخ عام أو فواتير عميل) — تُستخدم بعد الحذف
+let currentInvoiceRefreshFn = null;
+
 async function searchDate() {
   const dt = document.getElementById('search-date').value;
   if (!dt) return;
@@ -1066,13 +1142,8 @@ async function searchDate() {
     res = (data || []).map(mapSaleRow);
   } catch (e) { hideL(); return errH(e); }
   hideL();
-  const groups = {};
-  res.forEach(s => {
-    const key = invoiceKeyOf(s);
-    if (!groups[key]) groups[key] = { timestamp: s.timestamp, client: s.client, warehouse: s.warehouse, totalInvoice: s.totalInvoice, paid: s.paid, invoiceDebt: s.invoiceDebt, items: [], phone: s.phone, gov: s.gov, agent: s.agent };
-    groups[key].items.push(s);
-  });
-  currentInvoiceGroups = Object.values(groups).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+  currentInvoiceGroups = groupSalesIntoInvoices(res);
+  currentInvoiceRefreshFn = searchDate;
   document.getElementById('date-results').innerHTML = currentInvoiceGroups.length ? currentInvoiceGroups.map((g, idx) => `<tr>
     <td>${new Date(g.timestamp).toLocaleTimeString('ar-EG')}</td>
     <td>${esc(g.warehouse)}</td>
@@ -1296,7 +1367,7 @@ async function deleteInvoiceAt(idx) {
     if (error) throw new Error(error.message || "فشل حذف الفاتورة");
     toast("تم حذف الفاتورة وإرجاع الكميات بنجاح");
     await refreshDataOnly();
-    searchDate();
+    if (currentInvoiceRefreshFn) currentInvoiceRefreshFn(); else searchDate();
   } catch (e) { errH(e); }
 }
 
@@ -1348,7 +1419,7 @@ async function searchClient() {
   showL();
   let cSales = [];
   try {
-    const { data, error } = await withRetry(() => sb.from('sales').select('*').eq('client_name', cName).order('created_at', { ascending: false }));
+    const { data, error } = await withRetry(() => sb.from('sales').select('*').eq('client_name', cName).order('created_at', { ascending: false }).limit(3000));
     if (error) throw error;
     cSales = (data || []).map(mapSaleRow);
   } catch (e) { hideL(); return errH(e); }
@@ -1356,6 +1427,7 @@ async function searchClient() {
   if (!cData && !cSales.length) return toast("العميل غير موجود", true);
   currentClientSearched = cName;
   currentClientDebt = cData ? cData.debt : 0;
+  cancelEditClientName();
   document.getElementById('c-payment-amount').value = '0';
   document.getElementById('c-debt-manual').value = currentClientDebt.toFixed(2);
   document.getElementById('c-profile').style.display = 'block';
@@ -1382,6 +1454,127 @@ async function searchClient() {
   } else {
     document.getElementById('c-last-invoice').innerHTML = 'لا يوجد فواتير مسجلة لهذا العميل بعد';
   }
+  clientInvoiceMonthOffset = 0;
+  loadClientInvoicesByMonth();
+  loadClientPayments();
+}
+
+/* ============ تعديل اسم العميل (مع تحديث كل الفواتير والدفعات المرتبطة به) ============ */
+function startEditClientName() {
+  if (!currentClientSearched) return;
+  document.getElementById('c-name-new').value = currentClientSearched;
+  document.getElementById('c-name-edit-box').style.display = 'block';
+}
+function cancelEditClientName() {
+  document.getElementById('c-name-edit-box').style.display = 'none';
+}
+async function saveClientNameEdit() {
+  const newName = str_(document.getElementById('c-name-new').value);
+  if (!newName) return toast("اكتب الاسم الجديد", true);
+  if (newName === currentClientSearched) { cancelEditClientName(); return; }
+  const oldName = currentClientSearched;
+  const ok = await confirmModal(`هل تريد تغيير اسم العميل من "${oldName}" إلى "${newName}"؟ سيتم تحديث كل الفواتير والدفعات المرتبطة به تلقائياً.`);
+  if (!ok) return;
+  showL();
+  try {
+    const { data: existing, error: eErr } = await withRetry(() => sb.from('clients').select('id').eq('name', newName).maybeSingle());
+    if (eErr) throw eErr;
+    if (existing) throw new Error("يوجد عميل آخر مسجل بالفعل بنفس الاسم الجديد.");
+    const { error: cErr } = await withRetry(() => sb.from('clients').update({ name: newName }).eq('name', oldName));
+    if (cErr) throw cErr;
+    const { error: sErr } = await withRetry(() => sb.from('sales').update({ client_name: newName }).eq('client_name', oldName));
+    if (sErr) throw sErr;
+    // تحديث سجل الدفعات لو الجدول موجود (لو لسه مش متعمل، بنتجاهل الخطأ من غير ما نفشل العملية كلها)
+    try { await sb.from('payments_log').update({ client_name: newName }).eq('client_name', oldName); } catch (ignoreErr) {}
+    toast("تم تعديل اسم العميل بنجاح في كل السجلات المرتبطة به");
+    cancelEditClientName();
+    currentClientSearched = newName;
+    await refreshDataOnly();
+    document.getElementById('c-search-input').value = newName;
+    searchClient();
+  } catch (e) { errH(e); }
+}
+
+/* ============ فواتير العميل حسب الشهر (مع التنقل للشهر السابق/التالي) وبحث بفترة مخصصة ============ */
+let clientInvoiceMonthOffset = 0; // 0 = الشهر الحالي، 1 = الشهر السابق، وهكذا
+
+function monthRangeISO(offsetMonths) {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth() - offsetMonths, 1);
+  const nextFirst = new Date(now.getFullYear(), now.getMonth() - offsetMonths + 1, 1);
+  return { startISO: first.toISOString(), endISO: nextFirst.toISOString(), label: `${ARABIC_MONTHS[first.getMonth() + 1]} ${first.getFullYear()}` };
+}
+
+async function loadClientInvoicesByMonth() {
+  if (!currentClientSearched) return;
+  const { startISO, endISO, label } = monthRangeISO(clientInvoiceMonthOffset);
+  showL();
+  try {
+    const { data, error } = await withRetry(() => sb.from('sales').select('*').eq('client_name', currentClientSearched).gte('created_at', startISO).lt('created_at', endISO).order('created_at', { ascending: false }).limit(2000));
+    if (error) throw error;
+    hideL();
+    renderClientInvoiceGroups((data || []).map(mapSaleRow), label);
+    currentInvoiceRefreshFn = loadClientInvoicesByMonth;
+  } catch (e) { errH(e); }
+}
+
+function clientPrevMonth() {
+  clientInvoiceMonthOffset++;
+  loadClientInvoicesByMonth();
+}
+function clientNextMonth() {
+  if (clientInvoiceMonthOffset > 0) { clientInvoiceMonthOffset--; loadClientInvoicesByMonth(); }
+  else toast("أنت بالفعل في الشهر الحالي");
+}
+
+async function searchClientInvoicesByDateRange() {
+  if (!currentClientSearched) return;
+  const from = document.getElementById('c-inv-from').value;
+  const to = document.getElementById('c-inv-to').value;
+  if (!from || !to) return toast("اختر تاريخ البداية والنهاية", true);
+  showL();
+  try {
+    const { startISO } = dayRangeISO(from);
+    const { endISO } = dayRangeISO(to);
+    const { data, error } = await withRetry(() => sb.from('sales').select('*').eq('client_name', currentClientSearched).gte('created_at', startISO).lt('created_at', endISO).order('created_at', { ascending: false }).limit(2000));
+    if (error) throw error;
+    hideL();
+    renderClientInvoiceGroups((data || []).map(mapSaleRow), `من ${from} إلى ${to}`);
+    currentInvoiceRefreshFn = searchClientInvoicesByDateRange;
+  } catch (e) { errH(e); }
+}
+
+function renderClientInvoiceGroups(rows, label) {
+  currentInvoiceGroups = groupSalesIntoInvoices(rows);
+  document.getElementById('c-inv-period-label').textContent = label;
+  document.getElementById('c-invoices-tbody').innerHTML = currentInvoiceGroups.length ? currentInvoiceGroups.map((g, idx) => `<tr>
+    <td>${new Date(g.timestamp).toLocaleString('ar-EG')}</td>
+    <td>${esc(g.warehouse)}</td>
+    <td>${g.items.map(i => `${esc(i.product)} (${esc(i.carton)}ك+${esc(i.piece)}ق)`).join('، ')}</td>
+    <td>${g.totalInvoice.toFixed(2)}</td>
+    <td>${g.paid.toFixed(2)}</td>
+    <td style="color:var(--danger)">${g.invoiceDebt.toFixed(2)}</td>
+    <td>
+      <div class="btn-group">
+        <button class="btn-ghost" onclick="editInvoice(${idx})">✏️ تعديل</button>
+        <button class="btn-ghost" onclick="printInvoice(${idx})">️ طباعة</button>
+        <button class="btn-ghost" onclick="exportInvoicePDF(${idx})">📄 PDF</button>
+        <button class="btn-danger" onclick="deleteInvoiceAt(${idx})">🗑️ حذف</button>
+      </div>
+    </td>
+  </tr>`).join('') : `<tr><td colspan="7" style="text-align:center">لا يوجد فواتير في هذه الفترة</td></tr>`;
+}
+
+/* ============ سجل الدفعات المسجلة لكل عميل ============ */
+async function loadClientPayments() {
+  if (!currentClientSearched) return;
+  const tbody = document.getElementById('c-payments-tbody');
+  try {
+    const { data, error } = await withRetry(() => sb.from('payments_log').select('*').eq('client_name', currentClientSearched).order('created_at', { ascending: false }).limit(200));
+    if (error) { tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--muted);">سجل الدفعات غير متاح بعد (شغّل ملف SQL الخاص بجدول payments_log)</td></tr>'; return; }
+    const rows = data || [];
+    tbody.innerHTML = rows.length ? rows.map(r => `<tr><td>${new Date(r.created_at).toLocaleString('ar-EG')}</td><td style="color:var(--success)">${num_(r.amount).toFixed(2)}</td></tr>`).join('') : '<tr><td colspan="2" style="text-align:center">لا يوجد دفعات مسجلة لهذا العميل بعد</td></tr>';
+  } catch (e) { tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--muted);">تعذر تحميل سجل الدفعات</td></tr>'; }
 }
 
 function buildClientsTable() {
@@ -1408,6 +1601,8 @@ async function registerClientPayment() {
       p_client_name: currentClientSearched, p_amount: amount
     }));
     if (error) throw new Error(error.message || "فشل تسجيل الدفعة");
+    // تسجيل الدفعة في سجل منفصل (payments_log) عشان تظهر في تاريخ دفعات العميل — لا نفشل العملية لو الجدول لسه مش موجود
+    try { await withRetry(() => sb.from('payments_log').insert({ client_name: currentClientSearched, amount })); } catch (logErr) {}
     toast("تم تسجيل الدفعة وتحديث المديونية بنجاح");
     await refreshDataOnly();
     document.getElementById('c-search-input').value = currentClientSearched;
@@ -1501,6 +1696,59 @@ function populateYears() {
   const years = [];
   for (let y = currentYear; y >= currentYear - 6; y--) years.push(y);
   document.getElementById('an-year').innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+  const ptYearEl = document.getElementById('pt-year');
+  if (ptYearEl) ptYearEl.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+}
+
+function onPtTypeChange() {
+  const type = document.getElementById('pt-type').value;
+  document.getElementById('pt-day-box').style.display = type === 'day' ? 'block' : 'none';
+  document.getElementById('pt-month-box').style.display = type === 'month' ? 'block' : 'none';
+  document.getElementById('pt-year-box').style.display = (type === 'month' || type === 'year') ? 'block' : 'none';
+}
+
+async function calcProductTotals() {
+  const product = document.getElementById('pt-product').value;
+  const type = document.getElementById('pt-type').value;
+  if (!product) return toast("اختر منتج", true);
+  let startISO, endISO, label;
+  if (type === 'day') {
+    const dt = document.getElementById('pt-date').value;
+    if (!dt) return toast("اختر تاريخاً", true);
+    ({ startISO, endISO } = dayRangeISO(dt));
+    label = dt;
+  } else if (type === 'month') {
+    const year = Number(document.getElementById('pt-year').value);
+    const month = Number(document.getElementById('pt-month').value);
+    startISO = new Date(year, month - 1, 1).toISOString();
+    endISO = new Date(year, month, 1).toISOString();
+    label = `${ARABIC_MONTHS[month]} ${year}`;
+  } else {
+    const year = Number(document.getElementById('pt-year').value);
+    startISO = new Date(year, 0, 1).toISOString();
+    endISO = new Date(year + 1, 0, 1).toISOString();
+    label = `سنة ${year}`;
+  }
+  showL();
+  try {
+    // مفلتر بالمنتج + نطاق تاريخ محدد، فالاستعلام يفضل خفيف حتى مع آلاف الفواتير
+    const { data, error } = await withRetry(() => sb.from('sales').select('*').eq('product_name', product).gte('created_at', startISO).lt('created_at', endISO).limit(5000));
+    if (error) throw error;
+    hideL();
+    const rows = (data || []).map(mapSaleRow);
+    let totalQty = 0, totalValue = 0;
+    const invSet = new Set();
+    rows.forEach(r => { totalQty += r.carton + r.piece; totalValue += r.lineDue; invSet.add(invoiceKeyOf(r)); });
+    document.getElementById('pt-result').innerHTML = `
+      <div class="card" style="max-width:100%; text-align:center;">
+        <div style="color:var(--muted); font-size:13px;">${esc(product)} — ${esc(label)}</div>
+        <div class="grid" style="grid-template-columns: repeat(3, 1fr); margin-top:10px;">
+          <div class="stat-box">الكمية المباعة<div class="stat-val">${totalQty}</div></div>
+          <div class="stat-box">قيمة المبيعات<div class="stat-val">${totalValue.toFixed(2)}</div></div>
+          <div class="stat-box">عدد الفواتير<div class="stat-val">${invSet.size}</div></div>
+        </div>
+      </div>`;
+  } catch (e) { errH(e); }
 }
 
 function topN(obj, n, asc) {
