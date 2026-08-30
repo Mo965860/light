@@ -70,6 +70,11 @@
 <div id="app">
   <div id="topbar">
     <span id="current-user-label" style="color:var(--muted); font-size:13px;"></span>
+    <div id="backup-restore-controls" style="display:none; gap:8px; width:auto;">
+      <button class="btn-ghost" style="width:auto;" onclick="backupAllData()">💾 نسخة احتياطية</button>
+      <button class="btn-ghost" style="width:auto;" onclick="document.getElementById('restore-file-input').click()">♻️ استعادة نسخة</button>
+      <input type="file" id="restore-file-input" accept="application/json,.json" style="display:none" onchange="handleRestoreFileSelected(event)">
+    </div>
     <button class="btn-ghost-danger" onclick="logout()">🚪 تسجيل خروج</button>
   </div>
   <div class="nav" id="nav-menu">
@@ -582,9 +587,11 @@ async function establishSession(session) {
   if (CURRENT_ROLE === "agent") {
     document.getElementById('nav-menu').style.display = 'none';
     document.getElementById('admin-sales-search').style.display = 'none';
+    document.getElementById('backup-restore-controls').style.display = 'none';
   } else {
     document.getElementById('nav-menu').style.display = 'flex';
     document.getElementById('admin-sales-search').style.display = 'block';
+    document.getElementById('backup-restore-controls').style.display = 'flex';
   }
   refreshUI();
   hideL();
@@ -1812,6 +1819,129 @@ async function buildAnalytics() {
   Object.keys(byMonth).forEach(m => monthLabelled[ARABIC_MONTHS[Number(m)]] = byMonth[m]);
   renderList('an-month-top', topN(monthLabelled, 6, false), true);
   renderList('an-month-bottom', topN(monthLabelled, 6, true), true);
+}
+
+/* ============ نسخ احتياطي واستعادة لكل بيانات النظام ============ */
+// الجداول اللي بيتم تصديرها/استعادتها في النسخة الاحتياطية. جدول profiles (حسابات الدخول) مش متضمن عمداً
+// لأنه مرتبط بحسابات Supabase Auth ومش من المفروض تتلمس بالاستعادة.
+const BACKUP_TABLES = ['warehouses', 'clients', 'inventory', 'sales', 'returns_log', 'inventory_log', 'payments_log'];
+
+// جلب كل صفوف جدول معيّن بالكامل عن طريق صفحات (range) بدل الاعتماد على حد افتراضي واحد،
+// عشان الجداول الكبيرة زي sales ما تتقصش في النسخة الاحتياطية.
+async function fetchAllRowsForBackup(table) {
+  let all = [];
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    const { data, error } = await withRetry(() => sb.from(table).select('*').range(from, from + pageSize - 1));
+    if (error) {
+      // لو الجدول ده لسه مش موجود في قاعدة بيانات هذا المستخدم (مثلاً payments_log أو inventory_log في نسخة قديمة)
+      // بنتجاهله بدل ما نفشل النسخة الاحتياطية كلها.
+      if (error.code === '42P01' || (error.message && /does not exist|relation .* does not exist/i.test(error.message))) return null;
+      throw error;
+    }
+    const rows = data || [];
+    all = all.concat(rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
+async function backupAllData() {
+  if (CURRENT_ROLE !== 'admin') return toast('هذه الميزة متاحة للمدير فقط', true);
+  const ok = await confirmModal('هل تريد تحميل نسخة احتياطية كاملة من كل بيانات النظام الآن (المخازن، المنتجات، العملاء، المبيعات، المرتجعات، سجل حركة المخزون، سجل الدفعات)؟\n\nقد تستغرق العملية بعض الوقت حسب حجم البيانات.');
+  if (!ok) return;
+  showL();
+  try {
+    const backup = { meta: { app: 'النظام الشامل', exportedAt: new Date().toISOString(), version: 1 }, tables: {} };
+    for (const table of BACKUP_TABLES) {
+      const rows = await fetchAllRowsForBackup(table);
+      backup.tables[table] = rows; // ممكن تكون null لو الجدول غير موجود في هذه القاعدة
+    }
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `نسخة_احتياطية_${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    hideL();
+    let totalRows = 0;
+    Object.values(backup.tables).forEach(rows => { if (rows) totalRows += rows.length; });
+    toast(`تم تحميل النسخة الاحتياطية بنجاح ✓ (إجمالي الصفوف: ${totalRows})`);
+  } catch (e) { errH(e); }
+}
+
+function handleRestoreFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = ''; // نفضي قيمة الـinput عشان لو المستخدم اختار نفس الملف تاني يشتغل onchange برضه
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let parsed;
+    try { parsed = JSON.parse(e.target.result); }
+    catch (err) { toast('الملف المختار ليس ملف نسخة احتياطية صالح (JSON غير سليم)', true); return; }
+    if (!parsed || typeof parsed !== 'object' || !parsed.tables) {
+      toast('الملف المختار ليس ملف نسخة احتياطية صالح لهذا النظام', true);
+      return;
+    }
+    confirmAndRestore(parsed);
+  };
+  reader.onerror = () => toast('تعذر قراءة الملف المختار', true);
+  reader.readAsText(file, 'UTF-8');
+}
+
+async function confirmAndRestore(backup) {
+  if (CURRENT_ROLE !== 'admin') return toast('هذه الميزة متاحة للمدير فقط', true);
+  const exportedAt = backup.meta && backup.meta.exportedAt ? new Date(backup.meta.exportedAt).toLocaleString('ar-EG') : 'غير معروف';
+  const ok = await confirmModal(`⚠️ تحذير خطير جداً:\n\nالاستعادة ستقوم بحذف كل البيانات الحالية في النظام (كل المخازن، المنتجات، العملاء، المبيعات، المرتجعات، سجلات المخزون والدفعات) واستبدالها ببيانات النسخة الاحتياطية المختارة (تاريخ التصدير: ${exportedAt}).\n\nهذا الإجراء لا يمكن التراجع عنه نهائياً. هل أنت متأكد تماماً من المتابعة؟`);
+  if (!ok) return;
+  const typed = prompt('للتأكيد النهائي، اكتب كلمة "استعادة" بالضبط (بدون علامات تنصيص) ثم اضغط موافق:');
+  if (typed !== 'استعادة') { toast('تم إلغاء الاستعادة — لم يتم إدخال كلمة التأكيد بشكل صحيح', true); return; }
+  showL();
+  const loadingEl = document.getElementById('loading');
+  try {
+    // ترتيب الحذف: بنبدأ بجداول السجلات (اللي مالهاش تأثير على جداول تانية) ونخلّص بالجداول الأساسية.
+    // كل الجداول هنا مرتبطة ببعضها بالاسم النصي (warehouse_name, product_name, client_name) مش بمفاتيح خارجية صارمة،
+    // فترتيب الحذف والإدراج هنا للتنظيم فقط وليس لتفادي أخطاء قيود قاعدة البيانات.
+    loadingEl.textContent = 'جاري حذف البيانات الحالية...';
+    const deleteOrder = ['payments_log', 'inventory_log', 'returns_log', 'sales', 'inventory', 'clients', 'warehouses'];
+    for (const table of deleteOrder) {
+      if (!(table in backup.tables) || backup.tables[table] === null) continue; // لو الجدول مش موجود في النسخة الاحتياطية، سيبه زي ما هو حالياً
+      const { error } = await withRetry(() => sb.from(table).delete().not('id', 'is', null));
+      if (error && error.code !== '42P01') throw new Error(`فشل حذف بيانات جدول ${table}: ${error.message}`);
+    }
+    // ترتيب الإدراج: المخازن والعملاء أولاً، بعدين الأرصدة والمبيعات والسجلات
+    loadingEl.textContent = 'جاري استعادة البيانات...';
+    const insertOrder = ['warehouses', 'clients', 'inventory', 'sales', 'returns_log', 'inventory_log', 'payments_log'];
+    for (const table of insertOrder) {
+      const rows = backup.tables[table];
+      if (!rows || !rows.length) continue;
+      // بنشيل حقل id من كل صف قبل الإدراج عشان نخلي قاعدة البيانات تولّد أرقام تسلسلية جديدة بنفسها،
+      // وده بيمنع مشاكل تعارض الـid وتزامن الـsequence بعد الاستعادة.
+      const cleanRows = rows.map(r => { const copy = Object.assign({}, r); delete copy.id; return copy; });
+      const chunkSize = 500;
+      for (let i = 0; i < cleanRows.length; i += chunkSize) {
+        const chunk = cleanRows.slice(i, i + chunkSize);
+        loadingEl.textContent = `جاري استعادة جدول ${table} (${i + chunk.length}/${cleanRows.length})...`;
+        const { error } = await withRetry(() => sb.from(table).insert(chunk));
+        if (error) throw new Error(`فشل استعادة بيانات جدول ${table}: ${error.message}`);
+      }
+    }
+    loadingEl.textContent = 'جاري معالجة البيانات...';
+    toast('تمت استعادة النسخة الاحتياطية بنجاح ✓ جاري إعادة تحميل النظام...');
+    await refreshDataOnly();
+  } catch (e) {
+    errH(e);
+    toast('حدث خطأ أثناء الاستعادة — قد تكون بعض البيانات غير مكتملة. يرجى مراجعة النظام جيداً أو إعادة محاولة الاستعادة.', true);
+  } finally {
+    loadingEl.textContent = 'جاري معالجة البيانات...';
+  }
 }
 
 /* ============ حفظ واقتراح أسماء المندوبين ============ */
