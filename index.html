@@ -1426,14 +1426,16 @@ async function searchClient() {
   if (!cName) return toast("اكتب اسم العميل", true);
   const cData = db.clients.find(c => c.name === cName);
   showL();
-  let cSales = [];
+  let clientStats = null;
   try {
-    const { data, error } = await withRetry(() => sb.from('sales').select('*').eq('client_name', cName).order('created_at', { ascending: false }).limit(3000));
+    // نجيب إحصائيات العميل (أكثر/أقل منتج) وآخر فاتورة عن طريق RPC واحد بيحسب في قاعدة البيانات
+    // بدل ما نسحب آلاف صفوف مبيعات العميل كاملة للمتصفح ونحسبها في JS.
+    const { data, error } = await withRetry(() => sb.rpc('rpc_client_stats', { p_client_name: cName }));
     if (error) throw error;
-    cSales = (data || []).map(mapSaleRow);
+    clientStats = data;
   } catch (e) { hideL(); return errH(e); }
   hideL();
-  if (!cData && !cSales.length) return toast("العميل غير موجود", true);
+  if (!cData && (!clientStats || !clientStats.has_sales)) return toast("العميل غير موجود", true);
   currentClientSearched = cName;
   currentClientDebt = cData ? cData.debt : 0;
   cancelEditClientName();
@@ -1444,21 +1446,15 @@ async function searchClient() {
   document.getElementById('c-total-spend').textContent = cData ? cData.totalPurchases.toFixed(2) : '0';
   document.getElementById('c-debt').textContent = cData ? cData.debt.toFixed(2) : '0';
   document.getElementById('c-first-date').textContent = cData && cData.firstDate ? new Date(cData.firstDate).toLocaleDateString('ar-EG') : '-';
-  const pC = {};
-  cSales.forEach(s => pC[s.product] = (pC[s.product]||0) + s.carton + s.piece);
-  let mx="", mn="", mxV=-1, mnV=Infinity;
-  for(let p in pC) { if(pC[p]>mxV){mxV=pC[p];mx=p;} if(pC[p]<mnV){mnV=pC[p];mn=p;} }
-  document.getElementById('c-max-p').textContent = mx ? `${mx} (${mxV})` : '-';
-  document.getElementById('c-min-p').textContent = mn ? `${mn} (${mnV})` : '-';
-  if (cSales.length) {
-    const lastKey = invoiceKeyOf(cSales[0]); // cSales مرتبة تنازلياً حسب التاريخ، فأول عنصر هو الأحدث
-    const lastLines = cSales.filter(s => invoiceKeyOf(s) === lastKey);
-    const first = lastLines[0];
+  document.getElementById('c-max-p').textContent = clientStats && clientStats.max_product ? `${clientStats.max_product} (${clientStats.max_qty})` : '-';
+  document.getElementById('c-min-p').textContent = clientStats && clientStats.min_product ? `${clientStats.min_product} (${clientStats.min_qty})` : '-';
+  if (clientStats && clientStats.last_invoice && clientStats.last_invoice.items && clientStats.last_invoice.items.length) {
+    const li = clientStats.last_invoice;
     document.getElementById('c-last-invoice').innerHTML = `
-      <div>📅 ${new Date(first.timestamp).toLocaleString('ar-EG')}</div>
-      <div>🏭 المخزن: ${esc(first.warehouse)}</div>
-      <div> الأصناف: ${lastLines.map(l => `${esc(l.product)} (${esc(l.carton)}ك+${esc(l.piece)}ق)`).join('، ')}</div>
-      <div>💰 الإجمالي: ${first.totalInvoice.toFixed(2)} | المدفوع: ${first.paid.toFixed(2)} | مديونية الفاتورة: ${first.invoiceDebt.toFixed(2)}</div>
+      <div>📅 ${new Date(li.timestamp).toLocaleString('ar-EG')}</div>
+      <div>🏭 المخزن: ${esc(li.warehouse)}</div>
+      <div> الأصناف: ${li.items.map(l => `${esc(l.product)} (${esc(l.carton)}ك+${esc(l.piece)}ق)`).join('، ')}</div>
+      <div>💰 الإجمالي: ${num_(li.total_invoice).toFixed(2)} | المدفوع: ${num_(li.paid).toFixed(2)} | مديونية الفاتورة: ${num_(li.invoice_debt).toFixed(2)}</div>
     `;
   } else {
     document.getElementById('c-last-invoice').innerHTML = 'لا يوجد فواتير مسجلة لهذا العميل بعد';
@@ -1740,21 +1736,22 @@ async function calcProductTotals() {
   }
   showL();
   try {
-    // مفلتر بالمنتج + نطاق تاريخ محدد، فالاستعلام يفضل خفيف حتى مع آلاف الفواتير
-    const { data, error } = await withRetry(() => sb.from('sales').select('*').eq('product_name', product).gte('created_at', startISO).lt('created_at', endISO).limit(5000));
+    // بدل ما نسحب كل صفوف المبيعات لهذا المنتج في الفترة كاملة للمتصفح ونجمعها في JS،
+    // بقينا بنستخدم RPC بيحسب الإجمالي (الكمية + القيمة + عدد الفواتير) في قاعدة البيانات مباشرة
+    // ويرجّع رقم واحد بس لكل قيمة، فحجم البيانات المنقولة عبر الشبكة بقى شبه معدوم مهما كبر عدد الفواتير.
+    const { data, error } = await withRetry(() => sb.rpc('rpc_product_period_totals', {
+      p_product: product, p_start: startISO, p_end: endISO
+    }));
     if (error) throw error;
     hideL();
-    const rows = (data || []).map(mapSaleRow);
-    let totalQty = 0, totalValue = 0;
-    const invSet = new Set();
-    rows.forEach(r => { totalQty += r.carton + r.piece; totalValue += r.lineDue; invSet.add(invoiceKeyOf(r)); });
+    const r = data || { total_qty: 0, total_value: 0, invoice_count: 0 };
     document.getElementById('pt-result').innerHTML = `
       <div class="card" style="max-width:100%; text-align:center;">
         <div style="color:var(--muted); font-size:13px;">${esc(product)} — ${esc(label)}</div>
         <div class="grid" style="grid-template-columns: repeat(3, 1fr); margin-top:10px;">
-          <div class="stat-box">الكمية المباعة<div class="stat-val">${totalQty}</div></div>
-          <div class="stat-box">قيمة المبيعات<div class="stat-val">${totalValue.toFixed(2)}</div></div>
-          <div class="stat-box">عدد الفواتير<div class="stat-val">${invSet.size}</div></div>
+          <div class="stat-box">الكمية المباعة<div class="stat-val">${num_(r.total_qty)}</div></div>
+          <div class="stat-box">قيمة المبيعات<div class="stat-val">${num_(r.total_value).toFixed(2)}</div></div>
+          <div class="stat-box">عدد الفواتير<div class="stat-val">${num_(r.invoice_count)}</div></div>
         </div>
       </div>`;
   } catch (e) { errH(e); }
@@ -1768,23 +1765,26 @@ function renderList(id, arr, isMoney) {
   document.getElementById(id).innerHTML = arr.length ? arr.map((e,i) => `<tr><td>${i+1}</td><td>${esc(e[0])}</td><td>${isMoney? Number(e[1]).toFixed(2) : e[1]}</td></tr>`).join('') : `<tr><td colspan="3" style="text-align:center">-</td></tr>`;
 }
 
+// ============ تحليلات السنة/الشهر: كل الحساب والتجميع بقى بيتم داخل Supabase (RPC واحد) ============
+// قبل كده: الدالة كانت بتسحب *كل* صفوف مبيعات السنة كاملة (ممكن تكون آلاف أو عشرات آلاف الصفوف) للمتصفح
+// وبعدين تجمّعها في JS (بالمنتج / بالمحافظة / بالعميل / بالشهر). ده كان بيسبب استهلاك ضخم لل egress
+// (نقل بيانات) مع كل استعلام تحليل، وممكن يسبب تهنيج فعلي في المتصفح كل ما البيانات تكبر بمرور الوقت.
+// دلوقتي بنستدعي RPC واحد بيعمل كل التجميع (GROUP BY) جوه قاعدة البيانات نفسها، ويرجّع بس النتيجة
+// النهائية الجاهزة للعرض (أعلى ٥ / أقل ٥ من كل قسم)، فحجم البيانات المنقولة صغير جداً بغض النظر عن
+// حجم جدول المبيعات الفعلي.
 async function buildAnalytics() {
   const year = Number(document.getElementById('an-year').value);
   const monthVal = document.getElementById('an-month').value;
   const month = monthVal ? Number(monthVal) : null;
   showL();
-  let yearSales = [];
+  let result = null;
   try {
-    // بنجيب سنة واحدة بس من قاعدة البيانات (مش كل السجل التاريخي)، فالاستعلام ده هيفضل سريع حتى بعد سنين من الاستخدام
-    const startISO = new Date(year, 0, 1).toISOString();
-    const endISO = new Date(year + 1, 0, 1).toISOString();
-    const { data, error } = await withRetry(() => sb.from('sales').select('*').gte('created_at', startISO).lt('created_at', endISO));
+    const { data, error } = await withRetry(() => sb.rpc('rpc_yearly_analytics', { p_year: year, p_month: month }));
     if (error) throw error;
-    yearSales = (data || []).map(mapSaleRow);
+    result = data;
   } catch (e) { hideL(); return errH(e); }
   hideL();
-  const periodSales = month ? yearSales.filter(s => new Date(s.timestamp).getMonth()+1 === month) : yearSales;
-  if (!periodSales.length) {
+  if (!result || !num_(result.total_invoices)) {
     document.getElementById('an-empty').style.display = 'block';
     document.getElementById('an-empty').textContent = 'لا يوجد بيانات مبيعات لهذه الفترة';
     document.getElementById('an-results').style.display = 'none';
@@ -1792,33 +1792,17 @@ async function buildAnalytics() {
   }
   document.getElementById('an-empty').style.display = 'none';
   document.getElementById('an-results').style.display = 'block';
-  let totalSales = 0;
-  const invoiceSet = new Set();
-  const byProduct = {}, byGov = {}, byClient = {};
-  periodSales.forEach(s => {
-    totalSales += s.lineDue;
-    invoiceSet.add(invoiceKeyOf(s));
-    byProduct[s.product] = (byProduct[s.product]||0) + s.carton + s.piece;
-    if (s.gov) byGov[s.gov] = (byGov[s.gov]||0) + s.lineDue;
-    byClient[s.client] = (byClient[s.client]||0) + s.lineDue;
-  });
-  document.getElementById('an-total-sales').textContent = totalSales.toFixed(2);
-  document.getElementById('an-total-invoices').textContent = invoiceSet.size;
-  renderList('an-products-top', topN(byProduct, 5, false), false);
-  renderList('an-products-bottom', topN(byProduct, 5, true), false);
-  renderList('an-gov-top', topN(byGov, 5, false), true);
-  renderList('an-gov-bottom', topN(byGov, 5, true), true);
-  renderList('an-client-top', topN(byClient, 5, false), true);
-  renderList('an-client-bottom', topN(byClient, 5, true), true);
-  const byMonth = {};
-  yearSales.forEach(s => {
-    const m = new Date(s.timestamp).getMonth() + 1;
-    byMonth[m] = (byMonth[m]||0) + s.lineDue;
-  });
-  const monthLabelled = {};
-  Object.keys(byMonth).forEach(m => monthLabelled[ARABIC_MONTHS[Number(m)]] = byMonth[m]);
-  renderList('an-month-top', topN(monthLabelled, 6, false), true);
-  renderList('an-month-bottom', topN(monthLabelled, 6, true), true);
+  document.getElementById('an-total-sales').textContent = num_(result.total_sales).toFixed(2);
+  document.getElementById('an-total-invoices').textContent = num_(result.total_invoices);
+  const toEntries = (arr, keyField, valField) => (arr || []).map(r => [r[keyField], num_(r[valField])]);
+  renderList('an-products-top', toEntries(result.top_products, 'name', 'qty'), false);
+  renderList('an-products-bottom', toEntries(result.bottom_products, 'name', 'qty'), false);
+  renderList('an-gov-top', toEntries(result.top_governorates, 'name', 'value'), true);
+  renderList('an-gov-bottom', toEntries(result.bottom_governorates, 'name', 'value'), true);
+  renderList('an-client-top', toEntries(result.top_clients, 'name', 'value'), true);
+  renderList('an-client-bottom', toEntries(result.bottom_clients, 'name', 'value'), true);
+  renderList('an-month-top', toEntries(result.top_months, 'name', 'value'), true);
+  renderList('an-month-bottom', toEntries(result.bottom_months, 'name', 'value'), true);
 }
 
 /* ============ نسخ احتياطي واستعادة لكل بيانات النظام ============ */
