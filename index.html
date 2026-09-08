@@ -137,10 +137,7 @@
   </div>
 
   <div id="tab-stock" class="panel">
-    <!-- تم تحويل التصميم ليصبح بالعرض (أعمدة جانبية) لتقليل الطول وتسهيل التمرير -->
     <div class="grid-2" style="align-items: start;">
-      
-      <!-- العمود الأيمن: نموذج التوريد -->
       <div class="card">
         <h3 style="color:var(--accent); margin-bottom:15px;">📦 توريد وإضافة للمخازن</h3>
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
@@ -151,10 +148,7 @@
           <div><label>حد التنبيه</label><input type="number" id="inv-m" value="10" min="0"></div>
         </div>
         <button onclick="submitInv()" style="margin-top:15px; width:100%;">📤 حفظ التوريد</button>
-        
-        <!-- منطقة التراجع عن آخر عملية -->
         <div id="last-inv-addition-container" style="margin-top: 15px;"></div>
-
         <h4 style="color:var(--accent2); margin-top:20px; margin-bottom:10px; font-size:14px;">إدارة المخازن والمنتجات</h4>
         <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
           <button onclick="openModal('modal-wh')" style="background:transparent; border:1px solid var(--accent); color:var(--accent); margin:0;">+ مخزن جديد</button>
@@ -164,10 +158,9 @@
         </div>
       </div>
 
-      <!-- عمود سجل حركة المخزون (توريدات وتعديلات) -->
       <div class="card">
         <h3 style="color:var(--accent); margin-bottom:15px;">📜 سجل حركة المخزون (توريدات سابقة)</h3>
-        <p style="color:var(--muted); font-size:12px; margin-bottom:10px;">يعرض فقط عمليات التوريد (الإضافة للمخزون) لكل مخزن، الأحدث أولاً — ولا يشمل عمليات الخصم من المبيعات.</p>
+        <p style="color:var(--muted); font-size:12px; margin-bottom:10px;">يعرض فقط عمليات التوريد (الإضافة للمخزون) لكل مخزن، الأحدث أولاً.</p>
         <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
           <div><label>المخزن</label><select id="log-wh"></select></div>
           <div><label>بحث بتاريخ معيّن</label><input type="date" id="log-date"></div>
@@ -181,7 +174,6 @@
         <div id="log-date-results" style="overflow-x:auto; margin-top:12px;"></div>
       </div>
 
-      <!-- العمود الأيسر: البحث عن الرصيد -->
       <div class="card">
         <h3 style="color:var(--accent); margin-bottom:15px;">🔍 البحث عن رصيد منتج</h3>
         <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -189,7 +181,6 @@
           <div><label>المنتج</label><select id="stk-prod"></select></div>
         </div>
         <button onclick="searchStock()" style="margin-top:10px; width:100%;">بحث عن الرصيد</button>
-        
         <div id="stk-result" style="display:none; margin-top:15px;">
           <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
             <div class="stat-box" style="padding:10px;">الكرتونة<div class="stat-val" id="stk-carton" style="font-size:18px;">0</div></div>
@@ -197,7 +188,6 @@
             <div class="stat-box" style="padding:10px;">حد التنبيه<div class="stat-val" id="stk-min" style="font-size:18px;">0</div></div>
           </div>
           <div class="card" id="stk-updated" style="text-align:center; max-width:100%; margin-top:15px; background: var(--bg); font-size:13px; color: var(--muted);">-</div>
-
           <div id="stk-edit-box" style="display:none; margin-top:15px; border-top:1px solid var(--border); padding-top:15px;">
             <h4 style="color:var(--accent2); margin-top:0; font-size:14px;">✏️ تعديل / حذف رصيد هذا الصنف في هذا المخزن</h4>
             <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px;">
@@ -212,7 +202,6 @@
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
@@ -271,6 +260,7 @@
         <div><label>اكتب اسم العميل بدقة</label><input type="text" id="c-search-input"></div>
         <div style="display:flex; align-items:end;"><button onclick="searchClient()">بحث شامل</button></div>
       </div>
+      
       <div id="c-profile" style="display:none; margin-top:20px;">
         <h4 id="c-name" style="margin-bottom:10px;"></h4>
         <div class="btn-group" style="margin-bottom:10px;">
@@ -288,16 +278,23 @@
           <div class="stat-box">إجمالي المشتريات<div class="stat-val" id="c-total-spend">0</div></div>
           <div class="stat-box">المديونية الكلية<div class="stat-val" id="c-debt" style="color:var(--danger)">0</div></div>
           <div class="stat-box">أول تعامل معنا<div class="stat-val" id="c-first-date" style="font-size:16px;">-</div></div>
-          <div class="stat-box">أكثر منتج اشتراه<div class="stat-val" id="c-max-p" style="font-size:16px;">-</div></div>
-          <div class="stat-box">أقل منتج اشتراه<div class="stat-val" id="c-min-p" style="font-size:16px;">-</div></div>
         </div>
-        <h4> آخر فاتورة للعميل</h4>
-        <div class="card" id="c-last-invoice" style="text-align:right; max-width:100%;">-</div>
+
+        <button id="c-extra-stats-btn" class="btn-ghost" style="width:auto; margin-top:15px;" onclick="loadClientExtraStats()">🔍 عرض آخر فاتورة والمنتج الأكثر/الأقل شراءً</button>
+        <div id="c-extra-stats-container" style="display:none; margin-top:15px;">
+          <div class="grid">
+            <div class="stat-box">أكثر منتج اشتراه<div class="stat-val" id="c-max-p" style="font-size:16px;">-</div></div>
+            <div class="stat-box">أقل منتج اشتراه<div class="stat-val" id="c-min-p" style="font-size:16px;">-</div></div>
+          </div>
+          <h4>📌 آخر فاتورة للعميل</h4>
+          <div class="card" id="c-last-invoice" style="text-align:right; max-width:100%;">-</div>
+        </div>
 
         <h4>🧾 فواتير العميل حسب الفترة</h4>
         <div class="card" style="max-width:100%; text-align:right;">
-          <div style="text-align:center; color:var(--accent2); font-weight:bold; margin-bottom:10px;" id="c-inv-period-label">-</div>
+          <div style="text-align:center; color:var(--accent2); font-weight:bold; margin-bottom:10px;" id="c-inv-period-label">اضغط لعرض الفواتير</div>
           <div class="btn-group">
+            <button class="btn-ghost" onclick="clientShowCurrentMonth()">📅 عرض فواتير الشهر الحالي</button>
             <button class="btn-ghost" onclick="clientPrevMonth()">⬅️ الشهر السابق</button>
             <button class="btn-ghost" onclick="clientNextMonth()">الشهر التالي ➡️</button>
           </div>
@@ -310,7 +307,7 @@
           <div style="overflow-x:auto; margin-top:10px;">
             <table>
               <thead><tr><th>الوقت</th><th>المخزن</th><th>الأصناف</th><th>الإجمالي</th><th>مدفوع</th><th>مديونية</th><th>إجراءات</th></tr></thead>
-              <tbody id="c-invoices-tbody"><tr><td colspan="7" style="text-align:center">-</td></tr></tbody>
+              <tbody id="c-invoices-tbody"><tr><td colspan="7" style="text-align:center">اضغط زراً بالأعلى لعرض الفواتير</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -332,14 +329,17 @@
           <button class="btn-ghost-danger" style="width:100%; margin-top:15px;" onclick="deleteClient(currentClientSearched, currentClientDebt)">🗑️ حذف هذا العميل نهائياً</button>
         </div>
 
-        <h4>💳 سجل الدفعات المسجلة لهذا العميل</h4>
-        <div style="overflow-x:auto;">
-          <table>
-            <thead><tr><th>التاريخ والوقت</th><th>القيمة</th></tr></thead>
-            <tbody id="c-payments-tbody"><tr><td colspan="2" style="text-align:center">-</td></tr></tbody>
-          </table>
+        <button id="c-payments-btn" class="btn-ghost" style="width:auto; margin-top:15px;" onclick="toggleClientPayments()">💳 عرض سجل الدفعات المسجلة لهذا العميل</button>
+        <div id="c-payments-container" style="display:none; margin-top:10px;">
+          <div style="overflow-x:auto;">
+            <table>
+              <thead><tr><th>التاريخ والوقت</th><th>القيمة</th></tr></thead>
+              <tbody id="c-payments-tbody"><tr><td colspan="2" style="text-align:center">-</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </div>
+      
       <hr style="border-color:var(--border); margin:20px 0;">
       <h3 style="color:var(--accent)">سجل كل العملاء</h3>
       <button onclick="openModal('modal-cust')" style="width:auto; padding:5px 15px;">+ عميل جديد بافتتاحي</button>
@@ -359,24 +359,30 @@
         <div><label>اختر التاريخ للعرض</label><input type="date" id="td-date-picker" onchange="buildToday()"></div>
         <div style="display:flex; align-items:end;"><button onclick="resetTodayToNow()" style="margin-top:8px;">عرض اليوم الحالي</button></div>
       </div>
+      
       <div class="grid" style="margin-bottom:20px;">
         <div class="stat-box">قيمة مبيعات اليوم<div class="stat-val" id="td-sales-val">0</div></div>
         <div class="stat-box">عدد فواتير اليوم<div class="stat-val" id="td-sales-cnt">0</div></div>
         <div class="stat-box">إجمالي كمية المرتجعات<div class="stat-val" id="td-ret-cnt" style="color:var(--danger)">0</div></div>
       </div>
-      <h4>📋 كل العمليات اللي تمت في هذا اليوم (بيع + مرتجع)</h4>
-      <div style="overflow-x:auto;">
-        <table>
-          <thead><tr><th>الوقت</th><th>النوع</th><th>التفاصيل</th><th>القيمة</th></tr></thead>
-          <tbody id="td-ops-tbody"><tr><td colspan="4" style="text-align:center">لا يوجد عمليات بعد</td></tr></tbody>
-        </table>
-      </div>
-      <h4>📦 كمية كل منتج تم بيعه في هذا اليوم</h4>
-      <div style="overflow-x:auto;">
-        <table>
-          <thead><tr><th>المنتج</th><th>الكمية المباعة</th><th>التاريخ</th></tr></thead>
-          <tbody id="td-products-tbody"><tr><td colspan="3" style="text-align:center">لا يوجد مبيعات</td></tr></tbody>
-        </table>
+
+      <button id="td-details-btn" class="btn-ghost" style="width:auto; margin-bottom:15px;" onclick="toggleTodayDetails()">📋 عرض تفاصيل العمليات والمنتجات لهذا اليوم</button>
+      
+      <div id="td-details-container" style="display:none;">
+        <h4>📋 كل العمليات اللي تمت في هذا اليوم (بيع + مرتجع)</h4>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>الوقت</th><th>النوع</th><th>التفاصيل</th><th>القيمة</th></tr></thead>
+            <tbody id="td-ops-tbody"><tr><td colspan="4" style="text-align:center">اضغط على الزر أعلاه لعرض التفاصيل</td></tr></tbody>
+          </table>
+        </div>
+        <h4>📦 كمية كل منتج تم بيعه في هذا اليوم</h4>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>المنتج</th><th>الكمية المباعة</th><th>التاريخ</th></tr></thead>
+            <tbody id="td-products-tbody"><tr><td colspan="3" style="text-align:center">-</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -456,6 +462,13 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+/* ============ حل مشكلة التخزين المحلي عند فتح الملف مباشرة (Safe Storage) ============ */
+const safeStorage = {
+  getItem: (key) => { try { return localStorage.getItem(key); } catch(e) { return null; } },
+  setItem: (key, val) => { try { localStorage.setItem(key, val); } catch(e) { /* تجاهل الخطأ بصمت */ } },
+  removeItem: (key) => { try { localStorage.removeItem(key); } catch(e) { /* تجاهل الخطأ بصمت */ } }
+};
+
 /* ============ إعداد الاتصال بـ Supabase ============ */
 const SUPABASE_URL = "https://pyasuocrcnsjwpcgzmon.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5YXN1b2NyY25zandwY2d6bW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1ODgyMTgsImV4cCI6MjA5OTE2NDIxOH0.SzmpGsL5M3y-nawEQI2JU_Rc7QBji3pK3fFW5OjoSW8";
@@ -470,8 +483,8 @@ let db = { role: "", warehouses: [], products: [], clients: [], sales: [], retur
 let rCnt = 0;
 let currentInvoiceGroups = [];
 let invoiceWindow = null;
-let lastInvAddition = null; // متغير لتتبع آخر عملية توريد للتراجع عنها
-let pendingEditSaleIds = null; // لو المستخدم بيعدّل فاتورة قديمة: بنحتفظ بمعرّفاتها هنا ومنحذفهاش إلا بعد نجاح حفظ الفاتورة الجديدة (لمنع فقدان البيانات لو حصل قطع اتصال)
+let lastInvAddition = null;
+let pendingEditSaleIds = null;
 
 /* ============ نافذة تأكيد موحّدة ============ */
 function confirmModal(message) {
@@ -496,15 +509,11 @@ function toast(m, err=false) {
 }
 function errH(e) { hideL(); toast((e && e.message) || e, true); }
 function dateStr(d) { d = new Date(d); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-// تنسيق تاريخ/وقت لحقل datetime-local (بتوقيت المتصفح المحلي)
 function nowLocalInputValue() {
   const d = new Date();
   const pad = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-// مفتاح تجميع الفاتورة: لو موجود invoice_group_id حقيقي من قاعدة البيانات بيتستخدم (الأدق).
-// لو مش موجود (قاعدة بيانات قديمة لسه ما اتحدثتش)، بيرجع لتجميع تقريبي بفارق وقت لحظي (٣ ثواني) بدل مطابقة المللي ثانية بالظبط،
-// عشان أصناف نفس الفاتورة اللي بتتسجل بفارق بسيط جداً في التوقيت متتقسمش غلط لفاتورتين.
 function invoiceKeyOf(s) {
   if (s.invoiceGroup) return 'g_' + s.invoiceGroup;
   const bucket = Math.floor(new Date(s.timestamp).getTime() / 3000);
@@ -514,19 +523,15 @@ const ARABIC_MONTHS = ['', 'يناير','فبراير','مارس','أبريل','
 function num_(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
 function str_(v) { return v === null || v === undefined ? "" : v.toString().trim(); }
 
-/* ============ تنضيف أي نص قبل حقنه في HTML (منع XSS) ============ */
-// استخدم esc() لأي نص هيتحط كمحتوى داخل innerHTML
 function esc(v) {
   return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
 }
-// استخدم escAttr() لأي نص هيتحط جوه onclick="..." (قيمة string ملفوفة بـ ' داخل attribute ملفوف بـ ")
 function escAttr(v) {
   return String(v === null || v === undefined ? '' : v)
     .replace(/\\/g, '\\\\').replace(/'/g, "\\'")
     .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/* ============ إعادة محاولة تلقائية عند فشل الاتصال (Retry + Exponential Backoff) ============ */
 async function withRetry(fn, { retries = 3, baseDelay = 600 } = {}) {
   let lastErr = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -555,7 +560,6 @@ async function withRetry(fn, { retries = 3, baseDelay = 600 } = {}) {
   throw lastErr || new Error('فشل الاتصال بعد عدة محاولات');
 }
 
-/* ============ تسجيل الدخول ============ */
 async function doLogin() {
   const email = str_(document.getElementById('login-email').value);
   const password = document.getElementById('login-password').value;
@@ -565,8 +569,8 @@ async function doLogin() {
   try {
     const { data, error } = await withRetry(() => sb.auth.signInWithPassword({ email, password }));
     if (error) throw new Error("بيانات الدخول غير صحيحة.");
-    if (remember) localStorage.setItem('remembered_email', email);
-    else localStorage.removeItem('remembered_email');
+    if (remember) safeStorage.setItem('remembered_email', email);
+    else safeStorage.removeItem('remembered_email');
     await establishSession(data.session);
   } catch (e) { errH(e); }
 }
@@ -607,7 +611,7 @@ async function logout() {
 
 window.addEventListener('DOMContentLoaded', async () => {
   try {
-    const savedEmail = localStorage.getItem('remembered_email');
+    const savedEmail = safeStorage.getItem('remembered_email');
     if (savedEmail) document.getElementById('login-email').value = savedEmail;
     else document.getElementById('remember-email').checked = false;
   } catch (e) {}
@@ -623,7 +627,6 @@ async function refreshDataOnly() {
   catch (e) { errH(e); }
 }
 
-// تحويل صف مبيعات من الشكل اللي في قاعدة البيانات للشكل اللي بيستخدمه الواجهة
 function mapSaleRow(s) {
   return {
     id: s.id, timestamp: s.created_at, client: s.client_name, gov: s.governorate, phone: s.phone, agent: s.agent,
@@ -635,17 +638,12 @@ function mapSaleRow(s) {
 function mapReturnRow(r) {
   return { timestamp: r.created_at, warehouse: r.warehouse_name, product: r.product_name, carton: num_(r.carton), piece: num_(r.piece) };
 }
-// حدود يوم واحد بتوقيت المتصفح المحلي، عشان استعلامات "مبيعات يوم كذا" تكون دقيقة ومتوافقة مع dateStr()
 function dayRangeISO(dt) {
   const start = new Date(dt + 'T00:00:00');
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
   return { startISO: start.toISOString(), endISO: end.toISOString() };
 }
 
-// ملحوظة أداء مهمة: من قبل كان بيتم تحميل *كل* صفوف sales و returns_log مرة واحدة عند كل تسجيل دخول/تحديث.
-// ده كان هيسبب تهنيج فعلي بعد أشهر من الاستخدام مع آلاف الصفوف (تحميل كل البيانات في المتصفح في كل مرة).
-// دلوقتي بنحمّل بس البيانات الأساسية (المخازن، المنتجات، العملاء)، وأي شاشة محتاجة تفاصيل مبيعات (اليوم، بحث بتاريخ، بحث عميل، تحليلات)
-// بتجيب البيانات اللي محتاجاها بس مباشرة من قاعدة البيانات (مفلترة بتاريخ/عميل)، مش من نسخة محلية كاملة.
 async function loadInitialData() {
   const { data: warehouses, error: whErr } = await withRetry(() => sb.from('warehouses').select('*').order('id'));
   if (whErr) throw whErr;
@@ -657,7 +655,7 @@ async function loadInitialData() {
   db.warehouses = warehouses || [];
   db.products = (mainInv || []).map(r => r.product_name);
   db.clients = (clients || []).map(c => ({ name: c.name, totalPurchases: num_(c.total_purchases), debt: num_(c.debt), firstDate: c.first_date }));
-  db.sales = []; db.returns = []; // بقت دايماً فاضية؛ بيتملوا وقتياً بس وقت العرض من الدوال المتخصصة تحت
+  db.sales = []; db.returns = [];
 }
 
 function refreshUI() {
@@ -679,7 +677,7 @@ function refreshUI() {
   document.querySelectorAll('.pr-sel').forEach(el => { const v=el.value; el.innerHTML=prOpts; el.value=v; });
   document.getElementById('clients-datalist').innerHTML = db.clients.map(c => `<option value="${esc(c.name)}"></option>`).join('');
   populateAgentsDatalist();
-  loadLastInvAddition(); // تحميل حالة التراجع إن وجدت
+  loadLastInvAddition();
   const invDateEl = document.getElementById('s-invoice-date');
   if (invDateEl && !invDateEl.value) invDateEl.value = nowLocalInputValue();
   if (db.role === "admin") {
@@ -700,7 +698,6 @@ function switchTab(t, btn) {
   if (t === 'today') buildToday();
 }
 
-/* ============ فاتورة البيع ============ */
 function addProductRow() {
   rCnt++;
   const d = document.createElement('div');
@@ -734,7 +731,7 @@ async function submitSales() {
   const phone = document.getElementById('s-phone').value;
   const agent = document.getElementById('s-agent').value;
   const paid = num_(document.getElementById('s-paid').value);
-  const invoiceDateRaw = document.getElementById('s-invoice-date').value; // قيمة datetime-local
+  const invoiceDateRaw = document.getElementById('s-invoice-date').value;
   const items = [];
   document.querySelectorAll('.row-item').forEach(r => {
     const id = r.id.split('-')[1];
@@ -745,7 +742,6 @@ async function submitSales() {
     if (pr && (c > 0 || p > 0)) items.push({ product: pr, carton: c, piece: p, price });
   });
   if (!client || items.length === 0) return toast("أكمل بيانات العميل وأضف منتجاً بكمية", true);
-  // تحديد لو المستخدم اختار تاريخاً/وقتاً مختلف عن اللحظة الحالية (فارق أكتر من دقيقة) — يعني عايز يسجل الفاتورة بتاريخ قديم/مخصص
   let desiredISO = null;
   if (invoiceDateRaw) {
     const chosen = new Date(invoiceDateRaw);
@@ -753,7 +749,7 @@ async function submitSales() {
       desiredISO = chosen.toISOString();
     }
   }
-  const callStartISO = new Date(Date.now() - 5000).toISOString(); // هامش أمان ٥ ثواني قبل بدء النداء
+  const callStartISO = new Date(Date.now() - 5000).toISOString();
   showL();
   try {
     const { error } = await withRetry(() => sb.rpc('rpc_process_sale', {
@@ -761,8 +757,6 @@ async function submitSales() {
       p_paid: paid, p_items: items
     }));
     if (error) throw new Error(error.message || "فشل تنفيذ عملية البيع");
-    // لو المستخدم اختار تاريخاً مخصصاً للفاتورة: بنجيب الفاتورة اللي اتسجلت للتو (بمعرفة العميل والوقت) ونعدّل تاريخها
-    // ملحوظة: مفيش تعديل على RPC هنا؛ ده تحديث لاحق آمن بيمس فقط الفاتورة اللي احنا لسه سجلناها (limit = عدد الأصناف)
     if (desiredISO) {
       try {
         const { data: justInserted, error: fErr } = await withRetry(() => sb.from('sales').select('id').eq('client_name', client).gte('created_at', callStartISO).order('created_at', { ascending: false }).limit(items.length));
@@ -773,13 +767,12 @@ async function submitSales() {
         }
       } catch (dateErr) { toast("تم حفظ الفاتورة لكن تعذر ضبط التاريخ المخصص لها", true); }
     }
-    // لو كنا في وضع تعديل فاتورة قديمة: بنحذفها دلوقتي بعد ما الجديدة اتحفظت بنجاح (مش قبلها) لمنع فقدان البيانات
     if (pendingEditSaleIds) {
       const oldIds = pendingEditSaleIds;
       pendingEditSaleIds = null;
       const { error: delErr } = await withRetry(() => sb.rpc('rpc_delete_invoice', { p_sale_ids: oldIds }));
       if (delErr) {
-        toast("تم حفظ الفاتورة الجديدة بنجاح، لكن فشل حذف الفاتورة القديمة تلقائياً — يرجى حذفها يدوياً من سجل المبيعات لتجنب التكرار", true);
+        toast("تم حفظ الفاتورة الجديدة بنجاح، لكن فشل حذف الفاتورة القديمة تلقائياً", true);
       }
     }
     saveStoredAgent(agent);
@@ -795,7 +788,6 @@ async function submitSales() {
   } catch (e) { errH(e); }
 }
 
-/* ============ إدارة المخازن ============ */
 async function searchStock() {
   const warehouse = document.getElementById('stk-wh').value;
   const product = document.getElementById('stk-prod').value;
@@ -827,7 +819,6 @@ async function searchStock() {
   } catch (e) { errH(e); }
 }
 
-/* ============ تعديل / حذف رصيد صنف في مخزن محدد ============ */
 let currentStkRowId = null;
 async function updateStockQuantity() {
   if (!currentStkRowId) return toast("ابحث عن رصيد صنف أولاً قبل التعديل", true);
@@ -853,7 +844,7 @@ async function deleteStockItem() {
   if (!currentStkRowId) return toast("ابحث عن رصيد صنف أولاً قبل الحذف", true);
   const warehouse = document.getElementById('stk-wh').value;
   const product = document.getElementById('stk-prod').value;
-  const ok = await confirmModal(`متأكد إنك عايز تحذف صنف "${product}" من مخزن "${warehouse}" فقط؟ (لن يتأثر رصيد هذا الصنف في باقي المخازن)`);
+  const ok = await confirmModal(`متأكد إنك عايز تحذف صنف "${product}" من مخزن "${warehouse}" فقط؟`);
   if (!ok) return;
   showL();
   try {
@@ -873,43 +864,32 @@ async function submitInv() {
   const carton = num_(document.getElementById('inv-c').value);
   const piece = num_(document.getElementById('inv-p').value);
   const min = num_(document.getElementById('inv-m').value);
-  
   if (!product) return toast("اختر منتج", true);
   if (carton < 0 || piece < 0) return toast("لا يمكن إدخال كمية سالبة.", true);
   if (carton === 0 && piece === 0) return toast("أدخل كمية أكبر من صفر", true);
-  
   showL();
   try {
     const timestamp = new Date().toISOString();
-    // بنستخدم RPC ذرّي (rpc_adjust_inventory) بدل قراءة-ثم-كتابة عشان نمنع فقدان تحديثات لو حصل توريد لنفس الصنف في نفس اللحظة من جهاز تاني
     const { error } = await withRetry(() => sb.rpc('rpc_adjust_inventory', {
       p_warehouse: warehouse, p_product: product, p_carton_delta: carton, p_piece_delta: piece, p_min_alert: min
     }));
     if (error) throw new Error(error.message || "فشل تنفيذ عملية التوريد");
-    
-    // حفظ العملية الحالية لتمكين التراجع عنها
     saveLastInvAddition({ warehouse, product, carton, piece, min, timestamp });
-    
-    // تفريغ الحقول للإدخال التالي
     document.getElementById('inv-c').value = '0';
     document.getElementById('inv-p').value = '0';
-    
     toast("تم التوريد بنجاح. يمكنك التراجع من الأسفل إذا كان هناك خطأ.");
     await refreshDataOnly();
-  } catch (e) { 
-    errH(e); 
-  }
+  } catch (e) { errH(e); }
 }
 
-// ============ ميزات التراجع عن آخر توريد ============
 function saveLastInvAddition(data) {
   lastInvAddition = data;
-  sessionStorage.setItem('lastInvAddition', JSON.stringify(data));
+  safeStorage.setItem('lastInvAddition', JSON.stringify(data));
   renderLastInvAddition();
 }
 
 function loadLastInvAddition() {
-  const saved = sessionStorage.getItem('lastInvAddition');
+  const saved = safeStorage.getItem('lastInvAddition');
   if (saved) {
     lastInvAddition = JSON.parse(saved);
     renderLastInvAddition();
@@ -938,34 +918,26 @@ function renderLastInvAddition() {
 
 async function undoLastInvAddition() {
   if (!lastInvAddition) return;
-  const ok = await confirmModal(`هل تريد التراجع عن إضافة:\n${lastInvAddition.carton} كرتونة و ${lastInvAddition.piece} قطعة\nمن "${lastInvAddition.product}" في "${lastInvAddition.warehouse}"؟\n\nسيتم خصم هذه الكمية وإعادة تعبئة النموذج لتتمكن من تصحيح الخطأ.`);
+  const ok = await confirmModal(`هل تريد التراجع عن إضافة:\n${lastInvAddition.carton} كرتونة و ${lastInvAddition.piece} قطعة\nمن "${lastInvAddition.product}" في "${lastInvAddition.warehouse}"؟`);
   if (!ok) return;
-  
   showL();
   try {
-    // نفس الـRPC الذرّي، لكن بدلتا سالبة، عشان الخصم يحصل بأمان من غير قراءة-ثم-كتابة
     const { error } = await withRetry(() => sb.rpc('rpc_adjust_inventory', {
       p_warehouse: lastInvAddition.warehouse, p_product: lastInvAddition.product,
       p_carton_delta: -lastInvAddition.carton, p_piece_delta: -lastInvAddition.piece, p_min_alert: null
     }));
     if (error) throw new Error(error.message || "فشل التراجع عن العملية");
-    
-    // إعادة تعبئة النموذج بالبيانات السابقة لتسهيل التصحيح
     document.getElementById('inv-wh').value = lastInvAddition.warehouse;
     document.getElementById('inv-prod').value = lastInvAddition.product;
     document.getElementById('inv-c').value = lastInvAddition.carton;
     document.getElementById('inv-p').value = lastInvAddition.piece;
     document.getElementById('inv-m').value = lastInvAddition.min;
-    
-    sessionStorage.removeItem('lastInvAddition');
+    safeStorage.removeItem('lastInvAddition');
     lastInvAddition = null;
     renderLastInvAddition();
-    
     toast("تم التراجع بنجاح. تم تعبئة النموذج بالبيانات السابقة لتعديلها.");
     await refreshDataOnly();
-  } catch (e) {
-    errH(e);
-  }
+  } catch (e) { errH(e); }
 }
 
 async function submitReturn() {
@@ -981,23 +953,16 @@ async function submitReturn() {
   if (retC <= 0 && retP <= 0) return toast("أدخل كمية مرتجع أكبر من صفر.", true);
   showL();
   try {
-    // RPC ذرّي واحد بيتأكد من كفاية الرصيد ويخصم من المرسل ويضيف للمستلم ويسجل في returns_log كلها sameمعاملة واحدة
     const { error } = await withRetry(() => sb.rpc('rpc_transfer_return', {
       p_src_wh: srcWh, p_dest_wh: destWh, p_product: product,
       p_carton: retC, p_piece: retP, p_min_alert: minAlert
     }));
     if (error) throw new Error(error.message || "فشل تنفيذ عملية نقل المرتجع");
-    toast("تم نقل المرتجع بنجاح (خصم من المرسل وإضافة للمستلم)");
+    toast("تم نقل المرتجع بنجاح");
     await refreshDataOnly();
   } catch (e) { errH(e); }
 }
 
-/* ============ سجل حركة المخزون (توريدات سابقة) — بحث خفيف بالـ cursor pagination ============ */
-// ملحوظة: هذا القسم يعتمد على جدول inventory_log الذي يجب إنشاؤه في قاعدة البيانات (انظر ملف SQL المرفق).
-// الاستعلامات هنا كلها مفلترة بمخزن + مؤشر زمني (created_at) ومحدودة بـ limit، فتفضل سريعة حتى مع آلاف الصفوف
-// لأنها لا تجيب كل السجل التاريخي أبداً — فقط آخر صف مطلوب أو نطاق يوم واحد.
-// ملحوظة مهمة: الفلتر .or('carton_delta.gt.0,piece_delta.gt.0') بيخلي الشاشة دي تعرض فقط عمليات
-// الإضافة (توريد / تعديل يدوي بالزيادة) ومتعرضش عمليات الخصم (بيع، تراجع عن توريد، إلخ) لأن دي مش المقصودة هنا.
 let invLogCursor = null;
 let invLogWarehouseCtx = null;
 
@@ -1011,7 +976,7 @@ async function showLatestInvLog() {
     hideL();
     invLogWarehouseCtx = wh;
     if (!data || !data.length) {
-      document.getElementById('log-current').innerHTML = '<p style="color:var(--muted); text-align:center;">لا يوجد توريدات (إضافات) مسجلة لهذا المخزن بعد.</p>';
+      document.getElementById('log-current').innerHTML = '<p style="color:var(--muted); text-align:center;">لا يوجد توريدات مسجلة لهذا المخزن بعد.</p>';
       document.getElementById('log-prev-btn').style.display = 'none';
       invLogCursor = null;
       return;
@@ -1061,11 +1026,10 @@ async function searchInvLogByDate() {
     document.getElementById('log-date-results').innerHTML = rows.length ? `<table><thead><tr><th>الوقت</th><th>المخزن</th><th>المنتج</th><th>كرتونة</th><th>قطعة</th></tr></thead><tbody>${rows.map(r => {
       const cd = num_(r.carton_delta), pd = num_(r.piece_delta);
       return `<tr><td>${new Date(r.created_at).toLocaleTimeString('ar-EG')}</td><td>${esc(r.warehouse_name)}</td><td>${esc(r.product_name)}</td><td>${esc(r.carton_before)}←${esc(r.carton_after)} (${cd>=0?'+':''}${esc(r.carton_delta)})</td><td>${esc(r.piece_before)}←${esc(r.piece_after)} (${pd>=0?'+':''}${esc(r.piece_delta)})</td></tr>`;
-    }).join('')}</tbody></table>` : '<p style="text-align:center; color:var(--muted);">لا يوجد توريدات (إضافات) في هذا اليوم</p>';
+    }).join('')}</tbody></table>` : '<p style="text-align:center; color:var(--muted);">لا يوجد توريدات في هذا اليوم</p>';
   } catch (e) { errH(e); }
 }
 
-/* ============ بحث ومتابعة سجل المرتجعات — نفس مبدأ البحث الخفيف بالـ cursor ============ */
 let retLogCursor = null;
 let retLogWarehouseCtx = null;
 
@@ -1125,8 +1089,6 @@ async function showPrevReturn() {
   } catch (e) { errH(e); }
 }
 
-/* ============ إدارة الفواتير (طباعة، PDF، تعديل، حذف) ============ */
-// دالة مشتركة لتجميع صفوف المبيعات (sales) لفواتير — تُستخدم في بحث المبيعات بتاريخ وفي فواتير العميل
 function groupSalesIntoInvoices(rows) {
   const groups = {};
   rows.forEach(s => {
@@ -1136,7 +1098,6 @@ function groupSalesIntoInvoices(rows) {
   });
   return Object.values(groups).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 }
-// دالة تُستدعى لإعادة تحميل آخر جدول فواتير كان معروضاً (بحث بتاريخ عام أو فواتير عميل) — تُستخدم بعد الحذف
 let currentInvoiceRefreshFn = null;
 
 async function searchDate() {
@@ -1175,9 +1136,8 @@ async function searchDate() {
 async function editInvoice(idx) {
   const group = currentInvoiceGroups[idx];
   if (!group) return;
-  const ok = await confirmModal(`سيتم تحميل فاتورة "${group.client}" في نموذج البيع للتعديل عليها. عند الضغط على "ترحيل الفاتورة"، سيتم حفظ الفاتورة الجديدة أولاً ثم حذف القديمة تلقائياً (فلن تفقد البيانات لو حصل قطع اتصال في المنتصف). هل تريد المتابعة؟`);
+  const ok = await confirmModal(`سيتم تحميل فاتورة "${group.client}" في نموذج البيع للتعديل عليها. هل تريد المتابعة؟`);
   if (!ok) return;
-  // بنحتفظ بمعرّفات الفاتورة القديمة، ومش هنحذفها إلا بعد ما الفاتورة الجديدة تتحفظ بنجاح في submitSales()
   pendingEditSaleIds = group.items.map(i => i.id);
   document.getElementById('s-warehouse').value = group.warehouse;
   document.getElementById('s-client').value = group.client;
@@ -1199,7 +1159,7 @@ async function editInvoice(idx) {
     document.getElementById(`prc-${currentId}`).value = item.price;
   });
   calcTotals();
-  toast("تم تحميل الفاتورة للتعديل. عدّل البيانات ثم اضغط 'ترحيل الفاتورة' لحفظها (القديمة هتتحذف تلقائياً بعد نجاح الحفظ)");
+  toast("تم تحميل الفاتورة للتعديل.");
   switchTab('sales', document.querySelector('.nav-btn'));
 }
 
@@ -1214,7 +1174,6 @@ function buildInvoiceHTML(g, dateFormatted) {
       <td>${((i.carton + i.piece) * i.price).toFixed(2)}</td>
     </tr>
   `).join('');
-
   return `
     <div class="invoice-container">
       <div class="header">
@@ -1243,27 +1202,21 @@ function buildInvoiceHTML(g, dateFormatted) {
             <th style="width:15%;">الإجمالي</th>
           </tr>
         </thead>
-        <tbody>
-          ${itemsRows}
-        </tbody>
+        <tbody>${itemsRows}</tbody>
       </table>
       <div class="totals">
         <div class="total-item"><strong>الإجمالي:</strong> ${g.totalInvoice.toFixed(2)} ج.م</div>
         <div class="total-item"><strong>المدفوع:</strong> ${g.paid.toFixed(2)} ج.م</div>
         <div class="total-item debt"><strong>المديونية:</strong> ${g.invoiceDebt.toFixed(2)} ج.م</div>
       </div>
-      <div class="footer">
-        شكراً لتعاملكم معنا | هذا المستند صادر من النظام الإلكتروني
-      </div>
+      <div class="footer">شكراً لتعاملكم معنا | هذا المستند صادر من النظام الإلكتروني</div>
     </div>
   `;
 }
 
 function buildInvoicePageHTML(g, dateFormatted) {
   const invoiceContent = buildInvoiceHTML(g, dateFormatted);
-  // اسم الملف بيتنضف من أي حروف ممكن تكسر اسم الملف أو الـJS string جوه html2pdf options
   const filename = `فاتورة_${g.client}_${dateFormatted}`.replace(/[^ء-ي0-9a-zA-Z_]/g, '_');
-  
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -1367,7 +1320,7 @@ function exportInvoicePDF(idx) {
 async function deleteInvoiceAt(idx) {
   const group = currentInvoiceGroups[idx];
   if (!group) return;
-  const ok = await confirmModal(`متأكد إنك عايز تحذف فاتورة "${group.client}" دي؟ هيتم إرجاع الكمية للمخزن وتصحيح مديونية العميل تلقائياً.`);
+  const ok = await confirmModal(`متأكد إنك عايز تحذف فاتورة "${group.client}" دي؟`);
   if (!ok) return;
   showL();
   try {
@@ -1413,7 +1366,6 @@ async function deleteProduct() {
   } catch (e) { errH(e); }
 }
 
-/* ============ بحث ومديونية العملاء ============ */
 function updateTotalDebt() {
   const total = db.clients.reduce((sum, c) => sum + c.debt, 0);
   document.getElementById('total-clients-debt').textContent = total.toFixed(2) + ' ج.م';
@@ -1421,50 +1373,70 @@ function updateTotalDebt() {
 
 let currentClientSearched = "";
 let currentClientDebt = 0;
+
 async function searchClient() {
   const cName = document.getElementById('c-search-input').value.trim();
   if (!cName) return toast("اكتب اسم العميل", true);
   const cData = db.clients.find(c => c.name === cName);
-  showL();
-  let clientStats = null;
-  try {
-    // نجيب إحصائيات العميل (أكثر/أقل منتج) وآخر فاتورة عن طريق RPC واحد بيحسب في قاعدة البيانات
-    // بدل ما نسحب آلاف صفوف مبيعات العميل كاملة للمتصفح ونحسبها في JS.
-    const { data, error } = await withRetry(() => sb.rpc('rpc_client_stats', { p_client_name: cName }));
-    if (error) throw error;
-    clientStats = data;
-  } catch (e) { hideL(); return errH(e); }
-  hideL();
-  if (!cData && (!clientStats || !clientStats.has_sales)) return toast("العميل غير موجود", true);
+  if (!cData) return toast("العميل غير موجود", true);
+  
   currentClientSearched = cName;
-  currentClientDebt = cData ? cData.debt : 0;
+  currentClientDebt = cData.debt;
   cancelEditClientName();
   document.getElementById('c-payment-amount').value = '0';
   document.getElementById('c-debt-manual').value = currentClientDebt.toFixed(2);
   document.getElementById('c-profile').style.display = 'block';
   document.getElementById('c-name').textContent = "العميل: " + cName;
-  document.getElementById('c-total-spend').textContent = cData ? cData.totalPurchases.toFixed(2) : '0';
-  document.getElementById('c-debt').textContent = cData ? cData.debt.toFixed(2) : '0';
-  document.getElementById('c-first-date').textContent = cData && cData.firstDate ? new Date(cData.firstDate).toLocaleDateString('ar-EG') : '-';
-  document.getElementById('c-max-p').textContent = clientStats && clientStats.max_product ? `${clientStats.max_product} (${clientStats.max_qty})` : '-';
-  document.getElementById('c-min-p').textContent = clientStats && clientStats.min_product ? `${clientStats.min_product} (${clientStats.min_qty})` : '-';
-  if (clientStats && clientStats.last_invoice && clientStats.last_invoice.items && clientStats.last_invoice.items.length) {
-    const li = clientStats.last_invoice;
-    document.getElementById('c-last-invoice').innerHTML = `
-      <div>📅 ${new Date(li.timestamp).toLocaleString('ar-EG')}</div>
-      <div>🏭 المخزن: ${esc(li.warehouse)}</div>
-      <div> الأصناف: ${li.items.map(l => `${esc(l.product)} (${esc(l.carton)}ك+${esc(l.piece)}ق)`).join('، ')}</div>
-      <div>💰 الإجمالي: ${num_(li.total_invoice).toFixed(2)} | المدفوع: ${num_(li.paid).toFixed(2)} | مديونية الفاتورة: ${num_(li.invoice_debt).toFixed(2)}</div>
-    `;
-  } else {
-    document.getElementById('c-last-invoice').innerHTML = 'لا يوجد فواتير مسجلة لهذا العميل بعد';
-  }
+  document.getElementById('c-total-spend').textContent = cData.totalPurchases.toFixed(2);
+  document.getElementById('c-debt').textContent = cData.debt.toFixed(2);
+  document.getElementById('c-first-date').textContent = cData.firstDate ? new Date(cData.firstDate).toLocaleDateString('ar-EG') : '-';
+
+  document.getElementById('c-extra-stats-container').style.display = 'none';
+  document.getElementById('c-max-p').textContent = '-';
+  document.getElementById('c-min-p').textContent = '-';
+  document.getElementById('c-last-invoice').innerHTML = '-';
+  document.getElementById('c-inv-period-label').textContent = 'اضغط لعرض الفواتير';
+  document.getElementById('c-invoices-tbody').innerHTML = '<tr><td colspan="7" style="text-align:center">اضغط زراً بالأعلى لعرض الفواتير</td></tr>';
+  
+  document.getElementById('c-payments-container').style.display = 'none';
+  document.getElementById('c-payments-tbody').innerHTML = '<tr><td colspan="2" style="text-align:center">-</td></tr>';
+  
+  currentInvoiceGroups = [];
   clientInvoiceMonthOffset = 0;
-  loadClientInvoicesByMonth();
-  loadClientPayments();
 }
 
-/* ============ تعديل اسم العميل (مع تحديث كل الفواتير والدفعات المرتبطة به) ============ */
+async function loadClientExtraStats() {
+  if (!currentClientSearched) return;
+  const container = document.getElementById('c-extra-stats-container');
+  if (container.style.display === 'block') { container.style.display = 'none'; return; }
+  showL();
+  try {
+    const { data, error } = await withRetry(() => sb.rpc('rpc_client_stats', { p_client_name: currentClientSearched }));
+    if (error) throw error;
+    hideL();
+    const clientStats = data;
+    document.getElementById('c-max-p').textContent = clientStats && clientStats.max_product ? `${clientStats.max_product} (${clientStats.max_qty})` : '-';
+    document.getElementById('c-min-p').textContent = clientStats && clientStats.min_product ? `${clientStats.min_product} (${clientStats.min_qty})` : '-';
+    if (clientStats && clientStats.last_invoice && clientStats.last_invoice.items && clientStats.last_invoice.items.length) {
+      const li = clientStats.last_invoice;
+      document.getElementById('c-last-invoice').innerHTML = `
+        <div>📅 ${new Date(li.timestamp).toLocaleString('ar-EG')}</div>
+        <div>🏭 المخزن: ${esc(li.warehouse)}</div>
+        <div> الأصناف: ${li.items.map(l => `${esc(l.product)} (${esc(l.carton)}ك+${esc(l.piece)}ق)`).join('، ')}</div>
+        <div>💰 الإجمالي: ${num_(li.total_invoice).toFixed(2)} | المدفوع: ${num_(li.paid).toFixed(2)} | مديونية الفاتورة: ${num_(li.invoice_debt).toFixed(2)}</div>
+      `;
+    } else {
+      document.getElementById('c-last-invoice').innerHTML = 'لا يوجد فواتير مسجلة لهذا العميل بعد';
+    }
+    container.style.display = 'block';
+  } catch (e) { errH(e); }
+}
+
+function clientShowCurrentMonth() {
+  clientInvoiceMonthOffset = 0;
+  loadClientInvoicesByMonth();
+}
+
 function startEditClientName() {
   if (!currentClientSearched) return;
   document.getElementById('c-name-new').value = currentClientSearched;
@@ -1478,7 +1450,7 @@ async function saveClientNameEdit() {
   if (!newName) return toast("اكتب الاسم الجديد", true);
   if (newName === currentClientSearched) { cancelEditClientName(); return; }
   const oldName = currentClientSearched;
-  const ok = await confirmModal(`هل تريد تغيير اسم العميل من "${oldName}" إلى "${newName}"؟ سيتم تحديث كل الفواتير والدفعات المرتبطة به تلقائياً.`);
+  const ok = await confirmModal(`هل تريد تغيير اسم العميل من "${oldName}" إلى "${newName}"؟`);
   if (!ok) return;
   showL();
   try {
@@ -1489,7 +1461,6 @@ async function saveClientNameEdit() {
     if (cErr) throw cErr;
     const { error: sErr } = await withRetry(() => sb.from('sales').update({ client_name: newName }).eq('client_name', oldName));
     if (sErr) throw sErr;
-    // تحديث سجل الدفعات لو الجدول موجود (لو لسه مش متعمل، بنتجاهل الخطأ من غير ما نفشل العملية كلها)
     try { await sb.from('payments_log').update({ client_name: newName }).eq('client_name', oldName); } catch (ignoreErr) {}
     toast("تم تعديل اسم العميل بنجاح في كل السجلات المرتبطة به");
     cancelEditClientName();
@@ -1500,9 +1471,7 @@ async function saveClientNameEdit() {
   } catch (e) { errH(e); }
 }
 
-/* ============ فواتير العميل حسب الشهر (مع التنقل للشهر السابق/التالي) وبحث بفترة مخصصة ============ */
-let clientInvoiceMonthOffset = 0; // 0 = الشهر الحالي، 1 = الشهر السابق، وهكذا
-
+let clientInvoiceMonthOffset = 0;
 function monthRangeISO(offsetMonths) {
   const now = new Date();
   const first = new Date(now.getFullYear(), now.getMonth() - offsetMonths, 1);
@@ -1570,43 +1539,47 @@ function renderClientInvoiceGroups(rows, label) {
   </tr>`).join('') : `<tr><td colspan="7" style="text-align:center">لا يوجد فواتير في هذه الفترة</td></tr>`;
 }
 
-/* ============ سجل الدفعات المسجلة لكل عميل ============ */
+async function toggleClientPayments() {
+  const container = document.getElementById('c-payments-container');
+  if (container.style.display === 'block') {
+    container.style.display = 'none';
+    return;
+  }
+  await loadClientPayments();
+  container.style.display = 'block';
+}
+
 async function loadClientPayments() {
   if (!currentClientSearched) return;
   const tbody = document.getElementById('c-payments-tbody');
+  tbody.innerHTML = '<tr><td colspan="2" style="text-align:center">جاري التحميل...</td></tr>';
   try {
     const { data, error } = await withRetry(() => sb.from('payments_log').select('*').eq('client_name', currentClientSearched).order('created_at', { ascending: false }).limit(200));
-    if (error) { tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--muted);">سجل الدفعات غير متاح بعد (شغّل ملف SQL الخاص بجدول payments_log)</td></tr>'; return; }
+    if (error) { tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--muted);">سجل الدفعات غير متاح بعد</td></tr>'; return; }
     const rows = data || [];
     tbody.innerHTML = rows.length ? rows.map(r => `<tr><td>${new Date(r.created_at).toLocaleString('ar-EG')}</td><td style="color:var(--success)">${num_(r.amount).toFixed(2)}</td></tr>`).join('') : '<tr><td colspan="2" style="text-align:center">لا يوجد دفعات مسجلة لهذا العميل بعد</td></tr>';
   } catch (e) { tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--muted);">تعذر تحميل سجل الدفعات</td></tr>'; }
 }
 
 function buildClientsTable() {
-  // ملحوظة: عمود "أكثر منتج اشتراه" اتشال من هنا لأنه كان محتاج يمسح كل صفوف المبيعات لكل عميل — ده أبطأ الجدول بشكل متزايد
-  // كل ما البيانات تكبر. البيانات دي لسه متاحة وبسرعة لما تدور على عميل بعينه في خانة البحث فوق.
   document.getElementById('clients-tbody').innerHTML = db.clients.length ? db.clients.map(c => {
     const firstDateStr = c.firstDate ? new Date(c.firstDate).toLocaleDateString('ar-EG') : '-';
     return `<tr><td>${esc(c.name)}</td><td>${firstDateStr}</td><td>${c.totalPurchases.toFixed(2)}</td><td style="color:${c.debt>0?'var(--danger)':'var(--success)'}">${c.debt.toFixed(2)}</td><td><button class="btn-danger" style="width:auto; margin:0; padding:6px 12px; font-size:12px;" onclick="deleteClient('${escAttr(c.name)}', ${c.debt})">🗑️ حذف</button></td></tr>`;
   }).join('') : `<tr><td colspan="5" style="text-align:center">لا يوجد عملاء مسجلين بعد</td></tr>`;
 }
 
-/* ============ إدارة مديونية العميل (دفعة / تعديل يدوي) وحذف العميل ============ */
 async function registerClientPayment() {
   if (!currentClientSearched) return toast("ابحث عن عميل أولاً", true);
   const amount = num_(document.getElementById('c-payment-amount').value);
   if (amount <= 0) return toast("أدخل قيمة دفعة أكبر من صفر", true);
-  const ok = await confirmModal(`هل تريد تسجيل دفعة بقيمة ${amount.toFixed(2)} ج.م من العميل "${currentClientSearched}"؟ سيتم خصمها من المديونية الحالية (${currentClientDebt.toFixed(2)} ج.م) لتصبح ${(currentClientDebt - amount).toFixed(2)} ج.م.`);
+  const ok = await confirmModal(`هل تريد تسجيل دفعة بقيمة ${amount.toFixed(2)} ج.م من العميل "${currentClientSearched}"؟`);
   if (!ok) return;
   showL();
   try {
-    // بنستخدم RPC ذرّي بيخصم من القيمة الحالية في قاعدة البيانات مباشرة (مش من القيمة المحفوظة محلياً)
-    // عشان لو المديونية اتغيّرت من جهاز تاني بين البحث والحفظ، الخصم يحصل صح على القيمة الحقيقية
     const { error } = await withRetry(() => sb.rpc('rpc_register_payment', {
       p_client_name: currentClientSearched, p_amount: amount
     }));
     if (error) throw new Error(error.message || "فشل تسجيل الدفعة");
-    // تسجيل الدفعة في سجل منفصل (payments_log) عشان تظهر في تاريخ دفعات العميل — لا نفشل العملية لو الجدول لسه مش موجود
     try { await withRetry(() => sb.from('payments_log').insert({ client_name: currentClientSearched, amount })); } catch (logErr) {}
     toast("تم تسجيل الدفعة وتحديث المديونية بنجاح");
     await refreshDataOnly();
@@ -1619,7 +1592,7 @@ async function editClientDebtManual() {
   if (!currentClientSearched) return toast("ابحث عن عميل أولاً", true);
   const newDebt = num_(document.getElementById('c-debt-manual').value);
   if (newDebt < 0) return toast("لا يمكن إدخال مديونية سالبة", true);
-  const ok = await confirmModal(`هل تريد تعديل مديونية العميل "${currentClientSearched}" يدوياً من ${currentClientDebt.toFixed(2)} ج.م لتصبح ${newDebt.toFixed(2)} ج.م؟`);
+  const ok = await confirmModal(`هل تريد تعديل مديونية العميل "${currentClientSearched}" يدوياً لتصبح ${newDebt.toFixed(2)} ج.م؟`);
   if (!ok) return;
   showL();
   try {
@@ -1635,10 +1608,8 @@ async function editClientDebtManual() {
 async function deleteClient(name, debt) {
   if (!name) return toast("اختر عميلاً للحذف", true);
   debt = num_(debt);
-  let msg = `متأكد إنك عايز تحذف العميل "${name}"؟ لا يمكن التراجع عن هذا الإجراء.`;
-  if (debt > 0) {
-    msg = `⚠️ تحذير: العميل "${name}" عليه مديونية غير محصّلة قدرها ${debt.toFixed(2)} ج.م!\n\nهل أنت متأكد فعلاً من حذف هذا العميل رغم وجود مديونية عليه؟ لا يمكن التراجع عن هذا الإجراء.`;
-  }
+  let msg = `متأكد إنك عايز تحذف العميل "${name}"؟`;
+  if (debt > 0) msg = `⚠️ تحذير: العميل "${name}" عليه مديونية غير محصّلة قدرها ${debt.toFixed(2)} ج.م!\n\nهل أنت متأكد فعلاً من حذف هذا العميل؟`;
   const ok = await confirmModal(msg);
   if (!ok) return;
   showL();
@@ -1653,7 +1624,6 @@ async function deleteClient(name, debt) {
   } catch (e) { errH(e); }
 }
 
-/* ============ ما تم اليوم ============ */
 function resetTodayToNow() {
   document.getElementById('td-date-picker').value = '';
   buildToday();
@@ -1663,40 +1633,94 @@ async function buildToday() {
   const pickerVal = document.getElementById('td-date-picker').value;
   const targetDateStr = pickerVal ? pickerVal : dateStr(new Date());
   showL();
-  let tS = [], tR = [];
+  
+  document.getElementById('td-details-container').style.display = 'none';
+  document.getElementById('td-ops-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center">اضغط على الزر أعلاه لعرض التفاصيل</td></tr>';
+  document.getElementById('td-products-tbody').innerHTML = '<tr><td colspan="3" style="text-align:center">-</td></tr>';
+
+  let lightSales = [], lightReturns = [];
   try {
     const { startISO, endISO } = dayRangeISO(targetDateStr);
+    
+    // التصحيح الجذري: استخدام اسم العمود الحقيقي في قاعدة البيانات (line_due) بدلاً من lineDue
     const [salesRes, returnsRes] = await Promise.all([
-      withRetry(() => sb.from('sales').select('*').gte('created_at', startISO).lt('created_at', endISO)),
-      withRetry(() => sb.from('returns_log').select('*').gte('created_at', startISO).lt('created_at', endISO))
+      withRetry(() => sb.from('sales').select('created_at, client_name, invoice_group_id, line_due').gte('created_at', startISO).lt('created_at', endISO)),
+      withRetry(() => sb.from('returns_log').select('carton, piece').gte('created_at', startISO).lt('created_at', endISO))
     ]);
+    
     if (salesRes.error) throw salesRes.error;
     if (returnsRes.error) throw returnsRes.error;
-    tS = (salesRes.data || []).map(mapSaleRow);
-    tR = (returnsRes.data || []).map(mapReturnRow);
+    
+    lightSales = salesRes.data || [];
+    lightReturns = returnsRes.data || [];
   } catch (e) { hideL(); return errH(e); }
+  
   hideL();
-  let sMoney = 0; tS.forEach(s => sMoney += s.lineDue);
-  const invoiceKeys = new Set(tS.map(invoiceKeyOf));
-  let rQty = 0; tR.forEach(r => rQty += r.carton + r.piece);
+  
+  let sMoney = 0; 
+  lightSales.forEach(s => sMoney += num_(s.line_due));
+  
+  // تهيئة الكائن بالشكل الصحيح لدالة invoiceKeyOf لتجنب أي أخطاء
+  const invoiceKeys = new Set(lightSales.map(s => invoiceKeyOf({ 
+    timestamp: s.created_at, 
+    invoiceGroup: s.invoice_group_id, 
+    client: s.client_name || 'غير معروف' 
+  })));
+  
+  let rQty = 0; 
+  lightReturns.forEach(r => rQty += num_(r.carton) + num_(r.piece));
+  
   document.getElementById('td-sales-val').textContent = sMoney.toFixed(2);
   document.getElementById('td-sales-cnt').textContent = invoiceKeys.size;
   document.getElementById('td-ret-cnt').textContent = rQty;
-  const ops = [];
-  tS.forEach(s => ops.push({ time: s.timestamp, type: 'بيع', detail: `${esc(s.client)} — ${esc(s.product)} (${esc(s.carton)}ك+${esc(s.piece)}ق) — ${esc(s.warehouse)}`, value: s.lineDue.toFixed(2) }));
-  tR.forEach(r => ops.push({ time: r.timestamp, type: 'مرتجع', detail: `${esc(r.product)} (${esc(r.carton)}ك+${esc(r.piece)}ق) — إلى ${esc(r.warehouse)}`, value: '-' }));
-  ops.sort((a,b) => new Date(b.time) - new Date(a.time));
-  document.getElementById('td-ops-tbody').innerHTML = ops.length ? ops.map(o => `<tr><td>${new Date(o.time).toLocaleTimeString('ar-EG')}</td><td style="color:${o.type==='بيع'?'var(--success)':'var(--danger)'}">${o.type}</td><td>${o.detail}</td><td>${o.value}</td></tr>`).join('') : `<tr><td colspan="4" style="text-align:center">لا يوجد عمليات في هذا اليوم</td></tr>`;
-  const byProduct = {};
-  tS.forEach(s => { byProduct[s.product] = (byProduct[s.product]||0) + s.carton + s.piece; });
-  const rows = Object.keys(byProduct).map(p => `<tr><td>${esc(p)}</td><td>${byProduct[p]}</td><td>${targetDateStr}</td></tr>`);
-  document.getElementById('td-products-tbody').innerHTML = rows.length ? rows.join('') : `<tr><td colspan="3" style="text-align:center">لا يوجد مبيعات في هذا اليوم</td></tr>`;
 }
 
-/* ============ تحليلات الشهر والسنة ============ */
+async function toggleTodayDetails() {
+  const container = document.getElementById('td-details-container');
+  if (container.style.display === 'block') {
+    container.style.display = 'none';
+    return;
+  }
+  
+  const pickerVal = document.getElementById('td-date-picker').value;
+  const targetDateStr = pickerVal ? pickerVal : dateStr(new Date());
+  showL();
+  
+  try {
+    const { startISO, endISO } = dayRangeISO(targetDateStr);
+    
+    const [salesRes, returnsRes] = await Promise.all([
+      withRetry(() => sb.from('sales').select('*').gte('created_at', startISO).lt('created_at', endISO).order('created_at', { ascending: false }).limit(2000)),
+      withRetry(() => sb.from('returns_log').select('*').gte('created_at', startISO).lt('created_at', endISO).order('created_at', { ascending: false }).limit(2000))
+    ]);
+    
+    if (salesRes.error) throw salesRes.error;
+    if (returnsRes.error) throw returnsRes.error;
+    
+    const tS = (salesRes.data || []).map(mapSaleRow);
+    const tR = (returnsRes.data || []).map(mapReturnRow);
+    
+    const ops = [];
+    tS.forEach(s => ops.push({ time: s.timestamp, type: 'بيع', detail: `${esc(s.client)} — ${esc(s.product)} (${esc(s.carton)}ك+${esc(s.piece)}ق) — ${esc(s.warehouse)}`, value: s.lineDue.toFixed(2) }));
+    tR.forEach(r => ops.push({ time: r.timestamp, type: 'مرتجع', detail: `${esc(r.product)} (${esc(r.carton)}ك+${esc(r.piece)}ق) — إلى ${esc(r.warehouse)}`, value: '-' }));
+    ops.sort((a,b) => new Date(b.time) - new Date(a.time));
+    
+    document.getElementById('td-ops-tbody').innerHTML = ops.length ? ops.map(o => `<tr><td>${new Date(o.time).toLocaleTimeString('ar-EG')}</td><td style="color:${o.type==='بيع'?'var(--success)':'var(--danger)'}">${o.type}</td><td>${o.detail}</td><td>${o.value}</td></tr>`).join('') : `<tr><td colspan="4" style="text-align:center">لا يوجد عمليات في هذا اليوم</td></tr>`;
+    
+    const byProduct = {};
+    tS.forEach(s => { byProduct[s.product] = (byProduct[s.product]||0) + s.carton + s.piece; });
+    const rows = Object.keys(byProduct).map(p => `<tr><td>${esc(p)}</td><td>${byProduct[p]}</td><td>${targetDateStr}</td></tr>`);
+    document.getElementById('td-products-tbody').innerHTML = rows.length ? rows.join('') : `<tr><td colspan="3" style="text-align:center">لا يوجد مبيعات في هذا اليوم</td></tr>`;
+    
+    container.style.display = 'block';
+  } catch (e) { 
+    errH(e); 
+  } finally {
+    hideL();
+  }
+}
+
 function populateYears() {
-  // من غير ما نجيب كل المبيعات بس عشان نعرف السنين المتاحة، بنعرض نطاق ثابت معقول (السنة الحالية + آخر ٦ سنين)
-  // لو مفيش بيانات لسنة معينة، buildAnalytics هيوضح "لا يوجد بيانات لهذه الفترة" وهي عملية رخيصة (استعلام سنة واحدة بس)
   const currentYear = new Date().getFullYear();
   const years = [];
   for (let y = currentYear; y >= currentYear - 6; y--) years.push(y);
@@ -1736,9 +1760,6 @@ async function calcProductTotals() {
   }
   showL();
   try {
-    // بدل ما نسحب كل صفوف المبيعات لهذا المنتج في الفترة كاملة للمتصفح ونجمعها في JS،
-    // بقينا بنستخدم RPC بيحسب الإجمالي (الكمية + القيمة + عدد الفواتير) في قاعدة البيانات مباشرة
-    // ويرجّع رقم واحد بس لكل قيمة، فحجم البيانات المنقولة عبر الشبكة بقى شبه معدوم مهما كبر عدد الفواتير.
     const { data, error } = await withRetry(() => sb.rpc('rpc_product_period_totals', {
       p_product: product, p_start: startISO, p_end: endISO
     }));
@@ -1765,13 +1786,6 @@ function renderList(id, arr, isMoney) {
   document.getElementById(id).innerHTML = arr.length ? arr.map((e,i) => `<tr><td>${i+1}</td><td>${esc(e[0])}</td><td>${isMoney? Number(e[1]).toFixed(2) : e[1]}</td></tr>`).join('') : `<tr><td colspan="3" style="text-align:center">-</td></tr>`;
 }
 
-// ============ تحليلات السنة/الشهر: كل الحساب والتجميع بقى بيتم داخل Supabase (RPC واحد) ============
-// قبل كده: الدالة كانت بتسحب *كل* صفوف مبيعات السنة كاملة (ممكن تكون آلاف أو عشرات آلاف الصفوف) للمتصفح
-// وبعدين تجمّعها في JS (بالمنتج / بالمحافظة / بالعميل / بالشهر). ده كان بيسبب استهلاك ضخم لل egress
-// (نقل بيانات) مع كل استعلام تحليل، وممكن يسبب تهنيج فعلي في المتصفح كل ما البيانات تكبر بمرور الوقت.
-// دلوقتي بنستدعي RPC واحد بيعمل كل التجميع (GROUP BY) جوه قاعدة البيانات نفسها، ويرجّع بس النتيجة
-// النهائية الجاهزة للعرض (أعلى ٥ / أقل ٥ من كل قسم)، فحجم البيانات المنقولة صغير جداً بغض النظر عن
-// حجم جدول المبيعات الفعلي.
 async function buildAnalytics() {
   const year = Number(document.getElementById('an-year').value);
   const monthVal = document.getElementById('an-month').value;
@@ -1805,13 +1819,8 @@ async function buildAnalytics() {
   renderList('an-month-bottom', toEntries(result.bottom_months, 'name', 'value'), true);
 }
 
-/* ============ نسخ احتياطي واستعادة لكل بيانات النظام ============ */
-// الجداول اللي بيتم تصديرها/استعادتها في النسخة الاحتياطية. جدول profiles (حسابات الدخول) مش متضمن عمداً
-// لأنه مرتبط بحسابات Supabase Auth ومش من المفروض تتلمس بالاستعادة.
 const BACKUP_TABLES = ['warehouses', 'clients', 'inventory', 'sales', 'returns_log', 'inventory_log', 'payments_log'];
 
-// جلب كل صفوف جدول معيّن بالكامل عن طريق صفحات (range) بدل الاعتماد على حد افتراضي واحد،
-// عشان الجداول الكبيرة زي sales ما تتقصش في النسخة الاحتياطية.
 async function fetchAllRowsForBackup(table) {
   let all = [];
   let from = 0;
@@ -1819,8 +1828,6 @@ async function fetchAllRowsForBackup(table) {
   while (true) {
     const { data, error } = await withRetry(() => sb.from(table).select('*').range(from, from + pageSize - 1));
     if (error) {
-      // لو الجدول ده لسه مش موجود في قاعدة بيانات هذا المستخدم (مثلاً payments_log أو inventory_log في نسخة قديمة)
-      // بنتجاهله بدل ما نفشل النسخة الاحتياطية كلها.
       if (error.code === '42P01' || (error.message && /does not exist|relation .* does not exist/i.test(error.message))) return null;
       throw error;
     }
@@ -1834,14 +1841,14 @@ async function fetchAllRowsForBackup(table) {
 
 async function backupAllData() {
   if (CURRENT_ROLE !== 'admin') return toast('هذه الميزة متاحة للمدير فقط', true);
-  const ok = await confirmModal('هل تريد تحميل نسخة احتياطية كاملة من كل بيانات النظام الآن (المخازن، المنتجات، العملاء، المبيعات، المرتجعات، سجل حركة المخزون، سجل الدفعات)؟\n\nقد تستغرق العملية بعض الوقت حسب حجم البيانات.');
+  const ok = await confirmModal('هل تريد تحميل نسخة احتياطية كاملة من كل بيانات النظام الآن؟');
   if (!ok) return;
   showL();
   try {
     const backup = { meta: { app: 'النظام الشامل', exportedAt: new Date().toISOString(), version: 1 }, tables: {} };
     for (const table of BACKUP_TABLES) {
       const rows = await fetchAllRowsForBackup(table);
-      backup.tables[table] = rows; // ممكن تكون null لو الجدول غير موجود في هذه القاعدة
+      backup.tables[table] = rows;
     }
     const json = JSON.stringify(backup, null, 2);
     const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
@@ -1863,7 +1870,7 @@ async function backupAllData() {
 
 function handleRestoreFileSelected(event) {
   const file = event.target.files && event.target.files[0];
-  event.target.value = ''; // نفضي قيمة الـinput عشان لو المستخدم اختار نفس الملف تاني يشتغل onchange برضه
+  event.target.value = '';
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (e) => {
@@ -1883,31 +1890,25 @@ function handleRestoreFileSelected(event) {
 async function confirmAndRestore(backup) {
   if (CURRENT_ROLE !== 'admin') return toast('هذه الميزة متاحة للمدير فقط', true);
   const exportedAt = backup.meta && backup.meta.exportedAt ? new Date(backup.meta.exportedAt).toLocaleString('ar-EG') : 'غير معروف';
-  const ok = await confirmModal(`⚠️ تحذير خطير جداً:\n\nالاستعادة ستقوم بحذف كل البيانات الحالية في النظام (كل المخازن، المنتجات، العملاء، المبيعات، المرتجعات، سجلات المخزون والدفعات) واستبدالها ببيانات النسخة الاحتياطية المختارة (تاريخ التصدير: ${exportedAt}).\n\nهذا الإجراء لا يمكن التراجع عنه نهائياً. هل أنت متأكد تماماً من المتابعة؟`);
+  const ok = await confirmModal(`⚠️ تحذير خطير جداً:\n\nالاستعادة ستقوم بحذف كل البيانات الحالية واستبدالها ببيانات النسخة الاحتياطية (تاريخ التصدير: ${exportedAt}).\n\nهل أنت متأكد تماماً؟`);
   if (!ok) return;
-  const typed = prompt('للتأكيد النهائي، اكتب كلمة "استعادة" بالضبط (بدون علامات تنصيص) ثم اضغط موافق:');
-  if (typed !== 'استعادة') { toast('تم إلغاء الاستعادة — لم يتم إدخال كلمة التأكيد بشكل صحيح', true); return; }
+  const typed = prompt('للتأكيد النهائي، اكتب كلمة "استعادة" بالضبط:');
+  if (typed !== 'استعادة') { toast('تم إلغاء الاستعادة', true); return; }
   showL();
   const loadingEl = document.getElementById('loading');
   try {
-    // ترتيب الحذف: بنبدأ بجداول السجلات (اللي مالهاش تأثير على جداول تانية) ونخلّص بالجداول الأساسية.
-    // كل الجداول هنا مرتبطة ببعضها بالاسم النصي (warehouse_name, product_name, client_name) مش بمفاتيح خارجية صارمة،
-    // فترتيب الحذف والإدراج هنا للتنظيم فقط وليس لتفادي أخطاء قيود قاعدة البيانات.
     loadingEl.textContent = 'جاري حذف البيانات الحالية...';
     const deleteOrder = ['payments_log', 'inventory_log', 'returns_log', 'sales', 'inventory', 'clients', 'warehouses'];
     for (const table of deleteOrder) {
-      if (!(table in backup.tables) || backup.tables[table] === null) continue; // لو الجدول مش موجود في النسخة الاحتياطية، سيبه زي ما هو حالياً
+      if (!(table in backup.tables) || backup.tables[table] === null) continue;
       const { error } = await withRetry(() => sb.from(table).delete().not('id', 'is', null));
       if (error && error.code !== '42P01') throw new Error(`فشل حذف بيانات جدول ${table}: ${error.message}`);
     }
-    // ترتيب الإدراج: المخازن والعملاء أولاً، بعدين الأرصدة والمبيعات والسجلات
     loadingEl.textContent = 'جاري استعادة البيانات...';
     const insertOrder = ['warehouses', 'clients', 'inventory', 'sales', 'returns_log', 'inventory_log', 'payments_log'];
     for (const table of insertOrder) {
       const rows = backup.tables[table];
       if (!rows || !rows.length) continue;
-      // بنشيل حقل id من كل صف قبل الإدراج عشان نخلي قاعدة البيانات تولّد أرقام تسلسلية جديدة بنفسها،
-      // وده بيمنع مشاكل تعارض الـid وتزامن الـsequence بعد الاستعادة.
       const cleanRows = rows.map(r => { const copy = Object.assign({}, r); delete copy.id; return copy; });
       const chunkSize = 500;
       for (let i = 0; i < cleanRows.length; i += chunkSize) {
@@ -1918,19 +1919,18 @@ async function confirmAndRestore(backup) {
       }
     }
     loadingEl.textContent = 'جاري معالجة البيانات...';
-    toast('تمت استعادة النسخة الاحتياطية بنجاح ✓ جاري إعادة تحميل النظام...');
+    toast('تمت استعادة النسخة الاحتياطية بنجاح ✓');
     await refreshDataOnly();
   } catch (e) {
     errH(e);
-    toast('حدث خطأ أثناء الاستعادة — قد تكون بعض البيانات غير مكتملة. يرجى مراجعة النظام جيداً أو إعادة محاولة الاستعادة.', true);
+    toast('حدث خطأ أثناء الاستعادة', true);
   } finally {
     loadingEl.textContent = 'جاري معالجة البيانات...';
   }
 }
 
-/* ============ حفظ واقتراح أسماء المندوبين ============ */
 function getStoredAgents() {
-  try { return JSON.parse(localStorage.getItem('saved_agents') || '[]'); }
+  try { return JSON.parse(safeStorage.getItem('saved_agents') || '[]'); }
   catch (e) { return []; }
 }
 function saveStoredAgent(name) {
@@ -1940,17 +1940,15 @@ function saveStoredAgent(name) {
     const list = getStoredAgents();
     if (!list.includes(name)) {
       list.push(name);
-      localStorage.setItem('saved_agents', JSON.stringify(list));
+      safeStorage.setItem('saved_agents', JSON.stringify(list));
     }
   } catch (e) {}
 }
 function populateAgentsDatalist() {
-  // مصدر أسماء المندوبين بقى localStorage بس (مش db.sales اللي بقت فاضية بعد تحسين الأداء)
   const dl = document.getElementById('agents-datalist');
   if (dl) dl.innerHTML = getStoredAgents().map(a => `<option value="${esc(a)}"></option>`).join('');
 }
 
-/* ============ تطابق أسماء العملاء الذكي ============ */
 function normalizeArabicName(str) {
   return str_(str).replace(/[\u064B-\u0652\u0670\u0640]/g, '').replace(/[إأآا]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ').trim().toLowerCase();
 }
@@ -1990,7 +1988,6 @@ function checkClientNameSimilarity() {
   db.clients.forEach(c => {
     const cNorm = normalizeArabicName(c.name);
     if (cNorm === norm) { best = c.name; bestDist = 0; return; }
-    // فحص فرق الطول (رخيص) الأول قبل حساب Edit Distance (الأغلى)، عشان نتفادى حساب مش لازم على عدد كبير من العملاء
     if (Math.abs(norm.length - cNorm.length) > 2) return;
     const dist = editDistance(norm, cNorm);
     if (dist <= 1 && dist < bestDist) {
@@ -2009,7 +2006,6 @@ function checkClientNameSimilarity() {
 document.getElementById('s-client').addEventListener('input', onClientNameInput);
 document.getElementById('s-client').addEventListener('blur', checkClientNameSimilarity);
 
-/* ============ المودالات ============ */
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
