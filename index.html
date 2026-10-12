@@ -173,6 +173,32 @@
         <div id="log-date-results" style="overflow-x:auto; margin-top:12px;"></div>
       </div>
 
+      <div class="card" style="grid-column: 1 / -1;">
+        <h3 style="color:var(--accent); margin-bottom:5px;">📑 كشف توريدات منتج</h3>
+        <p style="color:var(--muted); font-size:12px; margin-bottom:10px;">اعرض كل توريدات أي منتج، أو حدّد يوم / شهر / سنة معيّنة. سيب المنتج على "كل المنتجات" لعرض كل التوريدات في الفترة.</p>
+        <div class="grid">
+          <div><label>المنتج</label><select id="sp-product"></select></div>
+          <div><label>المخزن</label><select id="sp-wh"></select></div>
+          <div><label>الفترة</label><select id="sp-type" onchange="onSpTypeChange()">
+            <option value="all">كل الفترات (كل التوريدات)</option>
+            <option value="day">يوم معيّن</option>
+            <option value="month">شهر معيّن</option>
+            <option value="year">سنة كاملة</option>
+          </select></div>
+        </div>
+        <div class="grid">
+          <div id="sp-day-box" style="display:none;"><label>التاريخ</label><input type="date" id="sp-date"></div>
+          <div id="sp-month-box" style="display:none;"><label>الشهر</label><select id="sp-month">
+            <option value="1">يناير</option><option value="2">فبراير</option><option value="3">مارس</option><option value="4">أبريل</option>
+            <option value="5">مايو</option><option value="6">يونيو</option><option value="7">يوليو</option><option value="8">أغسطس</option>
+            <option value="9">سبتمبر</option><option value="10">أكتوبر</option><option value="11">نوفمبر</option><option value="12">ديسمبر</option>
+          </select></div>
+          <div id="sp-year-box" style="display:none;"><label>السنة</label><select id="sp-year"></select></div>
+          <div style="display:flex; align-items:end;"><button onclick="showSupplies()">🔍 عرض التوريدات</button></div>
+        </div>
+        <div id="sp-result" style="margin-top:15px;"></div>
+      </div>
+
       <div class="card">
         <h3 style="color:var(--accent); margin-bottom:15px;">🔍 البحث عن رصيد منتج</h3>
         <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -685,6 +711,7 @@ function refreshUI() {
   document.getElementById('clients-datalist').innerHTML = db.clients.map(c => `<option value="${esc(c.name)}"></option>`).join('');
   populateAgentsDatalist();
   loadLastInvAddition();
+  populateSupplyFilters();
   const invDateEl = document.getElementById('s-invoice-date');
   if (invDateEl && !invDateEl.value) invDateEl.value = nowLocalInputValue();
   if (db.role === "admin") {
@@ -959,6 +986,23 @@ async function submitReturn() {
   } catch (e) { errH(e); }
 }
 
+/* نوع الحركة في inventory_log (عمود movement_type) — لو العمود لسه مش متضاف في Supabase بنشتغل بالطريقة القديمة */
+let MOV_TYPE_OK = null;
+async function hasMovType() {
+  if (MOV_TYPE_OK === null) {
+    try { const { error } = await sb.from('inventory_log').select('movement_type').limit(1); MOV_TYPE_OK = !error; }
+    catch (e) { MOV_TYPE_OK = false; }
+  }
+  return MOV_TYPE_OK;
+}
+function supOnly(q) { return MOV_TYPE_OK ? q.or('movement_type.is.null,movement_type.eq.supply') : q; }
+const MOV_LABELS = {
+  supply: 'توريد', supply_undo: 'تراجع عن توريد', sale: 'بيع',
+  invoice_restore: 'إرجاع من فاتورة (حذف/تعديل)', return_in: 'مرتجع (استلام)',
+  return_out: 'مرتجع (إرسال)', manual: 'تعديل يدوي'
+};
+const movLabel = t => t ? (MOV_LABELS[t] || t) : 'قديم (غير مصنّف)';
+
 let invLogCursor = null;
 let invLogWarehouseCtx = null;
 
@@ -967,7 +1011,8 @@ async function showLatestInvLog() {
   if (!wh) return toast("اختر مخزناً", true);
   showL();
   try {
-    const { data, error } = await withRetry(() => sb.from('inventory_log').select('*').eq('warehouse_name', wh).gt('piece_delta', 0).order('created_at', { ascending: false }).limit(1));
+    await hasMovType();
+    const { data, error } = await withRetry(() => supOnly(sb.from('inventory_log').select('*').eq('warehouse_name', wh).gt('piece_delta', 0)).order('created_at', { ascending: false }).limit(1));
     if (error) throw error;
     hideL();
     invLogWarehouseCtx = wh;
@@ -997,7 +1042,8 @@ async function showPrevInvLog() {
   if (!invLogCursor || !invLogWarehouseCtx) return;
   showL();
   try {
-    const { data, error } = await withRetry(() => sb.from('inventory_log').select('*').eq('warehouse_name', invLogWarehouseCtx).gt('piece_delta', 0).lt('created_at', invLogCursor).order('created_at', { ascending: false }).limit(1));
+    await hasMovType();
+    const { data, error } = await withRetry(() => supOnly(sb.from('inventory_log').select('*').eq('warehouse_name', invLogWarehouseCtx).gt('piece_delta', 0).lt('created_at', invLogCursor)).order('created_at', { ascending: false }).limit(1));
     if (error) throw error;
     hideL();
     if (!data || !data.length) { toast("لا يوجد توريدات أقدم من ذلك"); return; }
@@ -1012,8 +1058,10 @@ async function searchInvLogByDate() {
   showL();
   try {
     const { startISO, endISO } = dayRangeISO(dt);
+    await hasMovType();
     let q = sb.from('inventory_log').select('*').gte('created_at', startISO).lt('created_at', endISO).gt('piece_delta', 0).order('created_at', { ascending: false }).limit(300);
     if (wh) q = q.eq('warehouse_name', wh);
+    q = supOnly(q);
     const { data, error } = await withRetry(() => q);
     if (error) throw error;
     hideL();
@@ -1022,6 +1070,99 @@ async function searchInvLogByDate() {
       const pd = num_(r.piece_delta);
       return `<tr><td>${new Date(r.created_at).toLocaleTimeString('ar-EG')}</td><td>${esc(r.warehouse_name)}</td><td>${esc(r.product_name)}</td><td>${esc(r.piece_before)}←${esc(r.piece_after)} (${pd>=0?'+':''}${esc(r.piece_delta)})</td></tr>`;
     }).join('')}</tbody></table>` : '<p style="text-align:center; color:var(--muted);">لا يوجد توريدات في هذا اليوم</p>';
+  } catch (e) { errH(e); }
+}
+
+/* ===== كشف توريدات منتج (كل الفترات / يوم / شهر / سنة) ===== */
+function populateSupplyFilters() {
+  const pEl = document.getElementById('sp-product');
+  const wEl = document.getElementById('sp-wh');
+  const yEl = document.getElementById('sp-year');
+  if (!pEl || !wEl || !yEl) return;
+  const prevP = pEl.value, prevW = wEl.value;
+  pEl.innerHTML = '<option value="">كل المنتجات</option>' + db.products.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+  wEl.innerHTML = '<option value="">كل المخازن</option>' + db.warehouses.map(w => `<option value="${esc(w.name)}">${esc(w.name)}</option>`).join('');
+  if (prevP) pEl.value = prevP;
+  if (prevW) wEl.value = prevW;
+  if (!yEl.options.length) {
+    const cy = new Date().getFullYear();
+    let opts = '';
+    for (let y = cy; y >= cy - 6; y--) opts += `<option value="${y}">${y}</option>`;
+    yEl.innerHTML = opts;
+  }
+}
+
+function onSpTypeChange() {
+  const type = document.getElementById('sp-type').value;
+  document.getElementById('sp-day-box').style.display = type === 'day' ? 'block' : 'none';
+  document.getElementById('sp-month-box').style.display = type === 'month' ? 'block' : 'none';
+  document.getElementById('sp-year-box').style.display = (type === 'month' || type === 'year') ? 'block' : 'none';
+}
+
+async function showSupplies() {
+  const product = document.getElementById('sp-product').value;
+  const wh = document.getElementById('sp-wh').value;
+  const type = document.getElementById('sp-type').value;
+  let startISO = null, endISO = null, periodLabel = 'كل الفترات';
+  if (type === 'day') {
+    const dt = document.getElementById('sp-date').value;
+    if (!dt) return toast("اختر تاريخاً", true);
+    ({ startISO, endISO } = dayRangeISO(dt));
+    periodLabel = dt;
+  } else if (type === 'month') {
+    const year = Number(document.getElementById('sp-year').value);
+    const month = Number(document.getElementById('sp-month').value);
+    startISO = new Date(year, month - 1, 1).toISOString();
+    endISO = new Date(year, month, 1).toISOString();
+    periodLabel = `${ARABIC_MONTHS[month]} ${year}`;
+  } else if (type === 'year') {
+    const year = Number(document.getElementById('sp-year').value);
+    startISO = new Date(year, 0, 1).toISOString();
+    endISO = new Date(year + 1, 0, 1).toISOString();
+    periodLabel = `سنة ${year}`;
+  }
+  showL();
+  try {
+    await hasMovType();
+    const fetched = await fetchAllPaged(() => {
+      let q = sb.from('inventory_log').select('*').gt('piece_delta', 0).order('created_at', { ascending: false });
+      if (product) q = q.eq('product_name', product);
+      if (wh) q = q.eq('warehouse_name', wh);
+      if (startISO) q = q.gte('created_at', startISO);
+      if (endISO) q = q.lt('created_at', endISO);
+      return q;
+    });
+    hideL();
+    // نعرض التوريدات بس: نستبعد الإرجاع من الفواتير والمرتجعات والتعديل اليدوي والتراجع
+    const isSupply = r => !r.movement_type || r.movement_type === 'supply';
+    const rows = fetched.filter(isSupply);
+    const out = document.getElementById('sp-result');
+    const title = `${product || 'كل المنتجات'} — ${wh || 'كل المخازن'} — ${periodLabel}`;
+    if (!rows.length) {
+      out.innerHTML = `<div style="color:var(--muted); font-size:13px; margin-bottom:8px;">${esc(title)}</div><p style="text-align:center; color:var(--muted);">لا توجد توريدات في هذه الفترة</p>`;
+      return;
+    }
+    const total = rows.reduce((t, r) => t + num_(r.piece_delta), 0);
+    const body = rows.map((r, i) => `<tr>
+        <td>${i + 1}</td>
+        <td>${new Date(r.created_at).toLocaleString('ar-EG')}</td>
+        <td>${esc(r.warehouse_name)}</td>
+        <td>${esc(r.product_name)}</td>
+        <td style="color:var(--success); font-weight:bold;">+${esc(r.piece_delta)}</td>
+      </tr>`).join('');
+    out.innerHTML = `
+      <div style="color:var(--muted); font-size:13px; margin-bottom:8px;">${esc(title)}</div>
+      <div class="grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="stat-box">عدد عمليات التوريد<div class="stat-val">${rows.length}</div></div>
+        <div class="stat-box">إجمالي القطع الموردة<div class="stat-val">${total}</div></div>
+      </div>
+      <div style="overflow-x:auto; margin-top:12px;">
+        <table style="margin-top:0;">
+          <thead><tr><th>#</th><th>تاريخ ووقت التوريد</th><th>المخزن</th><th>المنتج</th><th>الكمية الموردة</th></tr></thead>
+          <tbody>${body}</tbody>
+          <tfoot><tr style="background:#1f2937; font-weight:bold;"><td colspan="4">الإجمالي (${rows.length} عملية)</td><td>+${total}</td></tr></tfoot>
+        </table>
+      </div>`;
   } catch (e) { errH(e); }
 }
 
