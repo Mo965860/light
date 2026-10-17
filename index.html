@@ -121,6 +121,17 @@
       <button onclick="submitSales()">📤 ترحيل الفاتورة</button>
     </div>
 
+    <div class="card" id="agent-payment-card">
+      <h3 style="color:var(--accent)">💳 تسجيل دفعة من عميل</h3>
+      <p style="color:var(--muted); font-size:12px; margin-bottom:10px; line-height:1.7;">تسجيل دفعة فقط — بتتخصم تلقائياً من مديونية العميل. مفيش أي تعديل تاني متاح من هنا.</p>
+      <div class="grid">
+        <div><label>اسم العميل *</label><input type="text" id="ap-client" list="clients-datalist" oninput="updateAgentPayInfo()" placeholder="اكتب أو اختر اسم العميل"></div>
+        <div><label>قيمة الدفعة *</label><input type="number" id="ap-amount" min="0" value="0"></div>
+      </div>
+      <div id="ap-info" style="margin-top:10px; font-size:13px; color:var(--muted);"></div>
+      <button onclick="submitAgentPayment()">✅ تسجيل الدفعة</button>
+    </div>
+
     <div class="card" id="admin-sales-search">
       <h3 style="color:var(--accent)"> الاستعلام عن المبيعات وإدارة الفواتير</h3>
       <div class="grid">
@@ -228,12 +239,17 @@
 
       <div class="card">
         <h3 style="color:var(--accent); margin-bottom:10px;">📄 تقرير PDF: رصيد ومبيعات كل المنتجات</h3>
-        <p style="color:var(--muted); font-size:12px; margin-bottom:10px; line-height:1.7;">يطلع PDF فيه كل منتج وقصاده الرصيد الحالي (في كل المخازن معاً) وإجمالي الكمية اللي اتباعت منه (قطع، من غير فلوس). مفيش أي تحميل بيانات إلا لما تدوس الزر.</p>
+        <p style="color:var(--muted); font-size:12px; margin-bottom:10px; line-height:1.7;">يطلع PDF فيه كل منتج وقصاده الرصيد الحالي وإجمالي الكمية اللي اتباعت منه (قطع، من غير فلوس) — لكل المخازن أو للمخازن اللي تختارها. مفيش أي تحميل بيانات إلا لما تدوس الزر.</p>
         <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
           <div><label>مبيعات من تاريخ (اختياري)</label><input type="date" id="rep-from"></div>
           <div><label>إلى تاريخ (اختياري)</label><input type="date" id="rep-to"></div>
         </div>
         <p style="color:var(--muted); font-size:11px; margin-top:6px;">لو سبت التاريخين فاضيين هيحسب مبيعات كل الفترات.</p>
+        <div style="margin-top:12px;">
+          <label>المخازن في التقرير</label>
+          <div id="rep-wh-box" style="display:flex; flex-wrap:wrap; gap:8px 16px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--surface);"></div>
+          <p style="color:var(--muted); font-size:11px; margin-top:6px;">اختار مخزن أو أكتر، أو سيب "كل المخازن".</p>
+        </div>
         <button onclick="exportAllProductsReportPDF()" style="width:100%;">📄 تصدير PDF للمنتجات</button>
       </div>
     </div>
@@ -712,6 +728,7 @@ function refreshUI() {
   populateAgentsDatalist();
   loadLastInvAddition();
   populateSupplyFilters();
+  populateReportWarehouses();
   const invDateEl = document.getElementById('s-invoice-date');
   if (invDateEl && !invDateEl.value) invDateEl.value = nowLocalInputValue();
   if (db.role === "admin") {
@@ -1721,6 +1738,37 @@ async function registerClientPayment() {
   } catch (e) { errH(e); }
 }
 
+/* ===== تسجيل دفعة من شاشة المبيعات (متاح للمندوب والمدير) — دفعة فقط ===== */
+function updateAgentPayInfo() {
+  const el = document.getElementById('ap-info');
+  if (!el) return;
+  const name = document.getElementById('ap-client').value.trim();
+  if (!name) { el.textContent = ''; return; }
+  const c = db.clients.find(x => x.name === name);
+  el.innerHTML = c ? `المديونية الحالية: <b style="color:var(--danger)">${c.debt.toFixed(2)} ج.م</b>` : '<span style="color:var(--danger)">عميل غير موجود — اختار الاسم من القائمة</span>';
+}
+
+async function submitAgentPayment() {
+  const name = document.getElementById('ap-client').value.trim();
+  const c = db.clients.find(x => x.name === name);
+  if (!name || !c) return toast("اختار عميل موجود من القائمة", true);
+  const amount = num_(document.getElementById('ap-amount').value);
+  if (amount <= 0) return toast("أدخل قيمة دفعة أكبر من صفر", true);
+  const ok = await confirmModal(`هل تريد تسجيل دفعة بقيمة ${amount.toFixed(2)} ج.م من العميل "${name}"؟\nالمديونية الحالية: ${c.debt.toFixed(2)} ج.م`);
+  if (!ok) return;
+  showL();
+  try {
+    const { error } = await withRetry(() => sb.rpc('rpc_register_payment', { p_client_name: name, p_amount: amount }));
+    if (error) throw new Error(error.message || "فشل تسجيل الدفعة");
+    try { await withRetry(() => sb.from('payments_log').insert({ client_name: name, amount })); } catch (logErr) {}
+    document.getElementById('ap-client').value = '';
+    document.getElementById('ap-amount').value = '0';
+    document.getElementById('ap-info').textContent = '';
+    toast("تم تسجيل الدفعة وتحديث المديونية بنجاح");
+    await refreshDataOnly();
+  } catch (e) { errH(e); }
+}
+
 async function editClientDebtManual() {
   if (!currentClientSearched) return toast("ابحث عن عميل أولاً", true);
   const newDebt = num_(document.getElementById('c-debt-manual').value);
@@ -1966,9 +2014,39 @@ async function fetchAllPaged(buildQuery) {
   return all;
 }
 
-async function fetchSalesQtyRows(startISO, endISO) {
-  // الأفضل: تجميع على السيرفر (صف واحد لكل منتج = أقل egress). لو الدالة مش متسجلة بنرجع للطريقة العادية.
-  try {
+/* ===== فلتر المخازن لتقرير PDF ===== */
+function populateReportWarehouses() {
+  const box = document.getElementById('rep-wh-box');
+  if (!box) return;
+  const prevAll = !box.dataset.init || (document.getElementById('rep-wh-all') || {}).checked !== false;
+  const prevSel = new Set(Array.from(box.querySelectorAll('.rep-wh-cb:checked')).map(c => c.value));
+  const cbStyle = 'width:auto; margin:0;';
+  const lblStyle = 'display:flex; align-items:center; gap:6px; margin:0; cursor:pointer; font-size:13px;';
+  let html = `<label style="${lblStyle} color:var(--accent2); font-weight:bold;"><input type="checkbox" id="rep-wh-all" style="${cbStyle}" ${prevAll ? 'checked' : ''} onchange="onRepWhAllChange()"> كل المخازن</label>`;
+  html += db.warehouses.map(w => `<label style="${lblStyle}"><input type="checkbox" class="rep-wh-cb" value="${esc(w.name)}" style="${cbStyle}" ${(!prevAll && prevSel.has(w.name)) ? 'checked' : ''} onchange="onRepWhItemChange()"> ${esc(w.name)}</label>`).join('');
+  box.innerHTML = html;
+  box.dataset.init = '1';
+}
+function onRepWhAllChange() {
+  const all = document.getElementById('rep-wh-all');
+  if (all.checked) document.querySelectorAll('.rep-wh-cb').forEach(c => c.checked = false);
+  else if (!document.querySelector('.rep-wh-cb:checked')) all.checked = true;
+}
+function onRepWhItemChange() {
+  const any = !!document.querySelector('.rep-wh-cb:checked');
+  document.getElementById('rep-wh-all').checked = !any;
+}
+function getReportWarehouses() {
+  // مصفوفة فاضية = كل المخازن
+  const all = document.getElementById('rep-wh-all');
+  if (!all || all.checked) return [];
+  return Array.from(document.querySelectorAll('.rep-wh-cb:checked')).map(c => c.value);
+}
+
+async function fetchSalesQtyRows(startISO, endISO, whList) {
+  const filterWh = Array.isArray(whList) && whList.length > 0;
+  // الأفضل: تجميع على السيرفر (صف واحد لكل منتج = أقل egress). الدالة دي مش بتدعم فلتر المخزن، فبنستخدمها فقط لما يكون "كل المخازن".
+  if (!filterWh) try {
     const { data, error } = await sb.rpc('rpc_products_sales_qty', { p_start: startISO, p_end: endISO });
     if (!error && Array.isArray(data)) return data;
   } catch (e) { /* نكمل للبديل */ }
@@ -1976,11 +2054,12 @@ async function fetchSalesQtyRows(startISO, endISO) {
     let q = sb.from('sales').select('product_name,piece').order('id');
     if (startISO) q = q.gte('created_at', startISO);
     if (endISO) q = q.lt('created_at', endISO);
+    if (filterWh) q = q.in('warehouse_name', whList);
     return q;
   });
 }
 
-function buildAllProductsReportHTML(rows, periodLabel, nowLabel) {
+function buildAllProductsReportHTML(rows, periodLabel, nowLabel, whLabel) {
   const totals = rows.reduce((t, r) => ({ bp: t.bp + r.balP, sp: t.sp + r.soldP }), { bp: 0, sp: 0 });
   const body = rows.map((r, i) => `<tr><td>${i + 1}</td><td class="pn">${esc(r.name)}</td><td>${r.balP}</td><td>${r.soldP}</td></tr>`).join('');
   return `<div style="padding:10px 14px; direction:rtl; font-family:'Cairo',sans-serif; color:#000;">
@@ -1988,10 +2067,11 @@ function buildAllProductsReportHTML(rows, periodLabel, nowLabel) {
       <h1 style="font-size:22px; margin-bottom:4px;">تقرير رصيد ومبيعات المنتجات</h1>
       <div style="font-size:12px; color:#333;">تاريخ التقرير: ${esc(nowLabel)}</div>
       <div style="font-size:12px; color:#333;">فترة المبيعات: ${esc(periodLabel)}</div>
+      <div style="font-size:12px; color:#333;">المخازن: ${esc(whLabel || 'كل المخازن')}</div>
     </div>
     <table class="rep">
       <thead>
-        <tr><th>#</th><th>المنتج</th><th>الرصيد الحالي (قطعة) — كل المخازن</th><th>إجمالي المباع (قطعة)</th></tr>
+        <tr><th>#</th><th>المنتج</th><th>الرصيد الحالي (قطعة)${whLabel && whLabel !== 'كل المخازن' ? '' : ' — كل المخازن'}</th><th>إجمالي المباع (قطعة)</th></tr>
       </thead>
       <tbody>${body || '<tr><td colspan="4">لا يوجد منتجات</td></tr>'}</tbody>
       <tfoot><tr><td colspan="2">الإجمالي</td><td>${totals.bp}</td><td>${totals.sp}</td></tr></tfoot>
@@ -2006,6 +2086,8 @@ async function exportAllProductsReportPDF() {
   const startISO = fromVal ? dayRangeISO(fromVal).startISO : null;
   const endISO = toVal ? dayRangeISO(toVal).endISO : null;
   const periodLabel = (fromVal || toVal) ? `من ${fromVal || 'البداية'} إلى ${toVal || 'اليوم'}` : 'كل الفترات';
+  const selWh = getReportWarehouses();
+  const whLabel = selWh.length ? selWh.join('، ') : 'كل المخازن';
 
   // نفتح النافذة فوراً (قبل أي انتظار) عشان المتصفح ما يحظرهاش
   const w = window.open('', '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes');
@@ -2017,14 +2099,18 @@ async function exportAllProductsReportPDF() {
   showL();
   let rows;
   try {
-    const invRows = await fetchAllPaged(() => sb.from('inventory').select('product_name,piece').order('id'));
-    const soldRows = await fetchSalesQtyRows(startISO, endISO);
+    const invRows = await fetchAllPaged(() => {
+      let q = sb.from('inventory').select('product_name,piece').order('id');
+      if (selWh.length) q = q.in('warehouse_name', selWh);
+      return q;
+    });
+    const soldRows = await fetchSalesQtyRows(startISO, endISO, selWh);
     const map = new Map();
     const get = (name) => {
       if (!map.has(name)) map.set(name, { name, balP: 0, soldP: 0 });
       return map.get(name);
     };
-    db.products.forEach(n => get(n));
+    if (!selWh.length) db.products.forEach(n => get(n));
     invRows.forEach(r => { const o = get(r.product_name); o.balP += num_(r.piece); });
     soldRows.forEach(r => { const o = get(r.product_name); o.soldP += num_(r.piece); });
     rows = Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
@@ -2033,7 +2119,7 @@ async function exportAllProductsReportPDF() {
 
   const nowLabel = new Date().toLocaleString('ar-EG');
   const filename = ('تقرير_المنتجات_' + dateStr(new Date())).replace(/[^ء-ي0-9a-zA-Z_\-]/g, '_');
-  const content = buildAllProductsReportHTML(rows, periodLabel, nowLabel);
+  const content = buildAllProductsReportHTML(rows, periodLabel, nowLabel, whLabel);
   const page = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
