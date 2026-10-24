@@ -84,6 +84,7 @@
     <button class="nav-btn" onclick="switchTab('clients', this)">👥 بحث ومديونية العملاء</button>
     <button class="nav-btn" onclick="switchTab('today', this)">📅 ما تم والتحليلات</button>
     <button class="nav-btn" onclick="switchTab('analytics', this)">📊 تحليلات الشهر والسنة</button>
+    <button class="nav-btn" onclick="switchTab('collections', this)">💰 التحصيلات</button>
   </div>
 
   <div id="tab-sales" class="panel active">
@@ -500,6 +501,62 @@
       </div>
     </div>
   </div>
+
+  <div id="tab-collections" class="panel">
+    <div class="card">
+      <h3 style="color:var(--accent)">💰 تسجيل تحصيل جديد</h3>
+      <div class="grid" style="margin-top:15px;">
+        <div><label>المحافظة المحصَّل منها *</label><select id="col-gov" onchange="onColGovChange()"></select></div>
+      </div>
+      <div id="col-entry" style="display:none; margin-top:10px;">
+        <div class="grid">
+          <div><label>المبلغ المحصَّل (ج.م) *</label><input type="number" id="col-amount" min="0" step="any" placeholder="0"></div>
+          <div><label>تاريخ ووقت التحصيل</label><input type="datetime-local" id="col-date"></div>
+        </div>
+        <div style="margin-top:10px;"><label>ملاحظات</label><input type="text" id="col-notes" placeholder="اكتب أي ملاحظات عن التحصيل (اختياري)"></div>
+        <button onclick="saveCollection()">💾 حفظ التحصيل</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--accent)">🔎 البحث في التحصيلات</h3>
+      <div class="grid" style="margin-top:15px;">
+        <div><label>المحافظة</label><select id="col-f-gov"></select></div>
+        <div><label>الفترة</label><select id="col-f-type" onchange="onColTypeChange()">
+          <option value="all">كل الفترات</option>
+          <option value="day">يوم معيّن</option>
+          <option value="month">شهر معيّن</option>
+          <option value="year">سنة كاملة</option>
+        </select></div>
+      </div>
+      <div class="grid">
+        <div id="col-f-day-box" style="display:none;"><label>التاريخ</label><input type="date" id="col-f-date"></div>
+        <div id="col-f-month-box" style="display:none;"><label>الشهر</label><select id="col-f-month">
+          <option value="1">يناير</option><option value="2">فبراير</option><option value="3">مارس</option><option value="4">أبريل</option>
+          <option value="5">مايو</option><option value="6">يونيو</option><option value="7">يوليو</option><option value="8">أغسطس</option>
+          <option value="9">سبتمبر</option><option value="10">أكتوبر</option><option value="11">نوفمبر</option><option value="12">ديسمبر</option>
+        </select></div>
+        <div id="col-f-year-box" style="display:none;"><label>السنة</label><select id="col-f-year"></select></div>
+      </div>
+      <div class="btn-group">
+        <button onclick="searchCollections()">🔍 بحث</button>
+        <button class="btn-danger" onclick="undoLastCollection()">↩️ تراجع عن آخر تحصيل</button>
+      </div>
+
+      <div class="grid" style="margin-top:20px;">
+        <div class="stat-box">إجمالي المحصَّل<div class="stat-val" id="col-total" style="color:var(--success)">0</div></div>
+        <div class="stat-box">عدد التحصيلات<div class="stat-val" id="col-count">0</div></div>
+      </div>
+      <div id="col-by-gov" style="display:none;"></div>
+
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>التاريخ والوقت</th><th>المحافظة</th><th>المبلغ</th><th>الملاحظات</th><th>إجراءات</th></tr></thead>
+          <tbody id="col-tbody"><tr><td colspan="5" style="text-align:center">-</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal" id="modal-wh" onclick="if(event.target===this)closeModal('modal-wh')"><div class="card" style="max-width:450px;"><h3>مخزن جديد</h3><input type="text" id="new-wh" placeholder="اسم المخزن"><button onclick="saveWh()">حفظ</button></div></div>
@@ -747,6 +804,7 @@ function switchTab(t, btn) {
   btn.classList.add('active');
   if (t === 'clients') updateTotalDebt();
   if (t === 'today') buildToday();
+  if (t === 'collections') initCollectionsTab();
 }
 
 function addProductRow() {
@@ -927,16 +985,25 @@ async function submitInv() {
 
 function saveLastInvAddition(data) {
   lastInvAddition = data;
-  safeStorage.setItem('lastInvAddition', JSON.stringify(data));
   renderLastInvAddition();
 }
 
-function loadLastInvAddition() {
-  const saved = safeStorage.getItem('lastInvAddition');
-  if (saved) {
-    lastInvAddition = JSON.parse(saved);
-    renderLastInvAddition();
-  }
+/* آخر توريد يتحدد من سجل Supabase (مش من المتصفح) — فيظهر زرار التراجع على أي جهاز.
+   لو آخر حركة توريد في السجل هي "تراجع" يبقى مفيش حاجة تتراجع عنها. */
+async function loadLastInvAddition() {
+  try {
+    await hasMovType();
+    if (!MOV_TYPE_OK) { lastInvAddition = null; renderLastInvAddition(); return; }
+    const { data, error } = await withRetry(() => sb.from('inventory_log').select('*')
+      .in('movement_type', ['supply', 'supply_undo'])
+      .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1));
+    if (error) throw error;
+    const r = data && data[0];
+    lastInvAddition = (r && r.movement_type === 'supply' && num_(r.piece_delta) > 0)
+      ? { warehouse: r.warehouse_name, product: r.product_name, piece: num_(r.piece_delta), min: null, timestamp: r.created_at }
+      : null;
+  } catch (e) { lastInvAddition = null; }
+  renderLastInvAddition();
 }
 
 function renderLastInvAddition() {
@@ -953,13 +1020,17 @@ function renderLastInvAddition() {
         <div>📦 <b>${esc(lastInvAddition.product)}</b></div>
         <div>قطعة: <b>${esc(lastInvAddition.piece)}</b></div>
       </div>
+      ${lastInvAddition.timestamp ? `<div style="color:var(--muted); font-size:12px; margin-top:6px;">📅 ${new Date(lastInvAddition.timestamp).toLocaleString('ar-EG')}</div>` : ''}
       <button class="btn-danger" onclick="undoLastInvAddition()" style="margin-top:12px; width:100%; font-size:13px; padding:10px;">🗑️ تراجع عن هذه الإضافة (للتصحيح)</button>
     </div>
   `;
 }
 
 async function undoLastInvAddition() {
-  if (!lastInvAddition) return;
+  showL();
+  await loadLastInvAddition();
+  hideL();
+  if (!lastInvAddition) return toast("لا يوجد توريد للتراجع عنه (يمكن تم التراجع عنه بالفعل)", true);
   const ok = await confirmModal(`هل تريد التراجع عن إضافة:\n${lastInvAddition.piece} قطعة\nمن "${lastInvAddition.product}" في "${lastInvAddition.warehouse}"؟`);
   if (!ok) return;
   showL();
@@ -972,8 +1043,7 @@ async function undoLastInvAddition() {
     document.getElementById('inv-wh').value = lastInvAddition.warehouse;
     document.getElementById('inv-prod').value = lastInvAddition.product;
     document.getElementById('inv-p').value = lastInvAddition.piece;
-    document.getElementById('inv-m').value = lastInvAddition.min;
-    safeStorage.removeItem('lastInvAddition');
+    if (lastInvAddition.min !== null && lastInvAddition.min !== undefined) document.getElementById('inv-m').value = lastInvAddition.min;
     lastInvAddition = null;
     renderLastInvAddition();
     toast("تم التراجع بنجاح. تم تعبئة النموذج بالبيانات السابقة لتعديلها.");
@@ -1013,6 +1083,12 @@ async function hasMovType() {
   return MOV_TYPE_OK;
 }
 function supOnly(q) { return MOV_TYPE_OK ? q.or('movement_type.is.null,movement_type.eq.supply') : q; }
+/* توريدات + التراجع عنها (supply_undo) — عشان التراجع يظهر في السجل والكشف */
+function supLogOnly(q) {
+  return MOV_TYPE_OK
+    ? q.or('movement_type.is.null,movement_type.eq.supply,movement_type.eq.supply_undo').or('piece_delta.gt.0,movement_type.eq.supply_undo')
+    : q.gt('piece_delta', 0);
+}
 const MOV_LABELS = {
   supply: 'توريد', supply_undo: 'تراجع عن توريد', sale: 'بيع',
   invoice_restore: 'إرجاع من فاتورة (حذف/تعديل)', return_in: 'مرتجع (استلام)',
@@ -1029,7 +1105,7 @@ async function showLatestInvLog() {
   showL();
   try {
     await hasMovType();
-    const { data, error } = await withRetry(() => supOnly(sb.from('inventory_log').select('*').eq('warehouse_name', wh).gt('piece_delta', 0)).order('created_at', { ascending: false }).limit(1));
+    const { data, error } = await withRetry(() => supLogOnly(sb.from('inventory_log').select('*').eq('warehouse_name', wh)).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1));
     if (error) throw error;
     hideL();
     invLogWarehouseCtx = wh;
@@ -1048,7 +1124,7 @@ function renderInvLogEntry(row) {
   const pDelta = num_(row.piece_delta);
   document.getElementById('log-current').innerHTML = `
     <div class="card" style="max-width:100%; text-align:right;">
-      <div>🏭 <b>${esc(row.warehouse_name)}</b> — 📦 <b>${esc(row.product_name)}</b></div>
+      <div>🏭 <b>${esc(row.warehouse_name)}</b> — 📦 <b>${esc(row.product_name)}</b>${row.movement_type === 'supply_undo' ? ' <span style="color:var(--danger)">↩️ تراجع عن توريد</span>' : ''}</div>
       <div style="color:var(--muted); font-size:12px;">📅 ${new Date(row.created_at).toLocaleString('ar-EG')}</div>
       <div>قطعة: ${esc(row.piece_before)} ← ${esc(row.piece_after)} (${pDelta >= 0 ? '+' : ''}${esc(row.piece_delta)})</div>
     </div>`;
@@ -1060,7 +1136,7 @@ async function showPrevInvLog() {
   showL();
   try {
     await hasMovType();
-    const { data, error } = await withRetry(() => supOnly(sb.from('inventory_log').select('*').eq('warehouse_name', invLogWarehouseCtx).gt('piece_delta', 0).lt('created_at', invLogCursor)).order('created_at', { ascending: false }).limit(1));
+    const { data, error } = await withRetry(() => supLogOnly(sb.from('inventory_log').select('*').eq('warehouse_name', invLogWarehouseCtx).lt('created_at', invLogCursor)).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1));
     if (error) throw error;
     hideL();
     if (!data || !data.length) { toast("لا يوجد توريدات أقدم من ذلك"); return; }
@@ -1076,16 +1152,16 @@ async function searchInvLogByDate() {
   try {
     const { startISO, endISO } = dayRangeISO(dt);
     await hasMovType();
-    let q = sb.from('inventory_log').select('*').gte('created_at', startISO).lt('created_at', endISO).gt('piece_delta', 0).order('created_at', { ascending: false }).limit(300);
+    let q = sb.from('inventory_log').select('*').gte('created_at', startISO).lt('created_at', endISO).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(1000);
     if (wh) q = q.eq('warehouse_name', wh);
-    q = supOnly(q);
+    q = supLogOnly(q);
     const { data, error } = await withRetry(() => q);
     if (error) throw error;
     hideL();
     const rows = data || [];
     document.getElementById('log-date-results').innerHTML = rows.length ? `<table><thead><tr><th>الوقت</th><th>المخزن</th><th>المنتج</th><th>قطعة</th></tr></thead><tbody>${rows.map(r => {
       const pd = num_(r.piece_delta);
-      return `<tr><td>${new Date(r.created_at).toLocaleTimeString('ar-EG')}</td><td>${esc(r.warehouse_name)}</td><td>${esc(r.product_name)}</td><td>${esc(r.piece_before)}←${esc(r.piece_after)} (${pd>=0?'+':''}${esc(r.piece_delta)})</td></tr>`;
+      return `<tr><td>${new Date(r.created_at).toLocaleTimeString('ar-EG')}</td><td>${esc(r.warehouse_name)}</td><td>${esc(r.product_name)}${r.movement_type === 'supply_undo' ? ' <span style="color:var(--danger)">↩️ تراجع</span>' : ''}</td><td>${esc(r.piece_before)}←${esc(r.piece_after)} (${pd>=0?'+':''}${esc(r.piece_delta)})</td></tr>`;
     }).join('')}</tbody></table>` : '<p style="text-align:center; color:var(--muted);">لا يوجد توريدات في هذا اليوم</p>';
   } catch (e) { errH(e); }
 }
@@ -1142,7 +1218,8 @@ async function showSupplies() {
   try {
     await hasMovType();
     const fetched = await fetchAllPaged(() => {
-      let q = sb.from('inventory_log').select('*').gt('piece_delta', 0).order('created_at', { ascending: false });
+      let q = sb.from('inventory_log').select('*').order('created_at', { ascending: false }).order('id', { ascending: false });
+      q = MOV_TYPE_OK ? q.or('piece_delta.gt.0,movement_type.eq.supply_undo') : q.gt('piece_delta', 0);
       if (product) q = q.eq('product_name', product);
       if (wh) q = q.eq('warehouse_name', wh);
       if (startISO) q = q.gte('created_at', startISO);
@@ -1151,8 +1228,9 @@ async function showSupplies() {
     });
     hideL();
     // نعرض التوريدات بس: نستبعد الإرجاع من الفواتير والمرتجعات والتعديل اليدوي والتراجع
-    const isSupply = r => !r.movement_type || r.movement_type === 'supply';
+    const isSupply = r => !r.movement_type || r.movement_type === 'supply' || r.movement_type === 'supply_undo';
     const rows = fetched.filter(isSupply);
+    const isUndo = r => r.movement_type === 'supply_undo';
     const out = document.getElementById('sp-result');
     const title = `${product || 'كل المنتجات'} — ${wh || 'كل المخازن'} — ${periodLabel}`;
     if (!rows.length) {
@@ -1160,7 +1238,15 @@ async function showSupplies() {
       return;
     }
     const total = rows.reduce((t, r) => t + num_(r.piece_delta), 0);
-    const body = rows.map((r, i) => `<tr>
+    const supCnt = rows.filter(r => !isUndo(r)).length;
+    const undoCnt = rows.length - supCnt;
+    const body = rows.map((r, i) => isUndo(r) ? `<tr style="background:rgba(248,81,73,0.08);">
+        <td>${i + 1}</td>
+        <td>${new Date(r.created_at).toLocaleString('ar-EG')}</td>
+        <td>${esc(r.warehouse_name)}</td>
+        <td>${esc(r.product_name)} <span style="color:var(--danger)">↩️ تراجع عن توريد</span></td>
+        <td style="color:var(--danger); font-weight:bold;">${esc(r.piece_delta)}</td>
+      </tr>` : `<tr>
         <td>${i + 1}</td>
         <td>${new Date(r.created_at).toLocaleString('ar-EG')}</td>
         <td>${esc(r.warehouse_name)}</td>
@@ -1169,15 +1255,16 @@ async function showSupplies() {
       </tr>`).join('');
     out.innerHTML = `
       <div style="color:var(--muted); font-size:13px; margin-bottom:8px;">${esc(title)}</div>
-      <div class="grid" style="grid-template-columns: 1fr 1fr;">
-        <div class="stat-box">عدد عمليات التوريد<div class="stat-val">${rows.length}</div></div>
-        <div class="stat-box">إجمالي القطع الموردة<div class="stat-val">${total}</div></div>
+      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
+        <div class="stat-box">عدد عمليات التوريد<div class="stat-val">${supCnt}</div></div>
+        <div class="stat-box">عمليات التراجع<div class="stat-val" style="color:var(--danger)">${undoCnt}</div></div>
+        <div class="stat-box">صافي القطع الموردة<div class="stat-val">${total}</div></div>
       </div>
       <div style="overflow-x:auto; margin-top:12px;">
         <table style="margin-top:0;">
           <thead><tr><th>#</th><th>تاريخ ووقت التوريد</th><th>المخزن</th><th>المنتج</th><th>الكمية الموردة</th></tr></thead>
           <tbody>${body}</tbody>
-          <tfoot><tr style="background:#1f2937; font-weight:bold;"><td colspan="4">الإجمالي (${rows.length} عملية)</td><td>+${total}</td></tr></tfoot>
+          <tfoot><tr style="background:#1f2937; font-weight:bold;"><td colspan="4">الصافي بعد التراجعات (${supCnt} توريد، ${undoCnt} تراجع)</td><td>${total > 0 ? '+' : ''}${total}</td></tr></tfoot>
         </table>
       </div>`;
   } catch (e) { errH(e); }
@@ -2164,7 +2251,7 @@ async function exportAllProductsReportPDF() {
   w.onload = function () { setTimeout(() => { if (w.downloadPDF) w.downloadPDF(); }, 1500); };
 }
 
-const BACKUP_TABLES = ['warehouses', 'clients', 'inventory', 'sales', 'returns_log', 'inventory_log', 'payments_log'];
+const BACKUP_TABLES = ['warehouses', 'clients', 'inventory', 'sales', 'returns_log', 'inventory_log', 'payments_log', 'collections_log'];
 
 async function fetchAllRowsForBackup(table) {
   let all = [];
@@ -2243,14 +2330,14 @@ async function confirmAndRestore(backup) {
   const loadingEl = document.getElementById('loading');
   try {
     loadingEl.textContent = 'جاري حذف البيانات الحالية...';
-    const deleteOrder = ['payments_log', 'inventory_log', 'returns_log', 'sales', 'inventory', 'clients', 'warehouses'];
+    const deleteOrder = ['collections_log', 'payments_log', 'inventory_log', 'returns_log', 'sales', 'inventory', 'clients', 'warehouses'];
     for (const table of deleteOrder) {
       if (!(table in backup.tables) || backup.tables[table] === null) continue;
       const { error } = await withRetry(() => sb.from(table).delete().not('id', 'is', null));
       if (error && error.code !== '42P01') throw new Error(`فشل حذف بيانات جدول ${table}: ${error.message}`);
     }
     loadingEl.textContent = 'جاري استعادة البيانات...';
-    const insertOrder = ['warehouses', 'clients', 'inventory', 'sales', 'returns_log', 'inventory_log', 'payments_log'];
+    const insertOrder = ['warehouses', 'clients', 'inventory', 'sales', 'returns_log', 'inventory_log', 'payments_log', 'collections_log'];
     for (const table of insertOrder) {
       const rows = backup.tables[table];
       if (!rows || !rows.length) continue;
@@ -2412,6 +2499,170 @@ async function saveCust() {
     document.getElementById('new-cu').value = '';
     document.getElementById('new-cu-d').value = '';
     await refreshDataOnly();
+  } catch (e) { errH(e); }
+}
+
+/* ============ التحصيلات ============ */
+function colTableMissing(error) {
+  return error && (error.code === '42P01' || /does not exist|schema cache/i.test(error.message || ''));
+}
+function colErr(error, fallback) {
+  if (colTableMissing(error)) return new Error('جدول التحصيلات غير موجود في Supabase — شغّل كود SQL الخاص به أولاً.');
+  return new Error((error && error.message) || fallback);
+}
+
+function initCollectionsTab() {
+  const govSel = document.getElementById('col-gov');
+  if (!govSel.dataset.ready) {
+    const govs = Array.from(document.getElementById('s-gov').options).filter(o => o.value).map(o => o.value);
+    const opts = govs.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+    govSel.innerHTML = '<option value="">اختر المحافظة</option>' + opts;
+    document.getElementById('col-f-gov').innerHTML = '<option value="">كل المحافظات</option>' + opts;
+    const y = new Date().getFullYear();
+    let yrs = '';
+    for (let i = y; i >= y - 6; i--) yrs += `<option value="${i}">${i}</option>`;
+    document.getElementById('col-f-year').innerHTML = yrs;
+    document.getElementById('col-f-month').value = String(new Date().getMonth() + 1);
+    document.getElementById('col-f-date').value = dateStr(new Date());
+    govSel.dataset.ready = '1';
+  }
+  if (!document.getElementById('col-date').value) document.getElementById('col-date').value = nowLocalInputValue();
+  searchCollections();
+}
+
+function onColGovChange() {
+  const has = !!document.getElementById('col-gov').value;
+  document.getElementById('col-entry').style.display = has ? 'block' : 'none';
+  if (has) {
+    document.getElementById('col-date').value = nowLocalInputValue();
+    setTimeout(() => document.getElementById('col-amount').focus(), 50);
+  }
+}
+
+function onColTypeChange() {
+  const t = document.getElementById('col-f-type').value;
+  document.getElementById('col-f-day-box').style.display = t === 'day' ? 'block' : 'none';
+  document.getElementById('col-f-month-box').style.display = t === 'month' ? 'block' : 'none';
+  document.getElementById('col-f-year-box').style.display = (t === 'month' || t === 'year') ? 'block' : 'none';
+}
+
+async function saveCollection() {
+  const gov = document.getElementById('col-gov').value;
+  if (!gov) return toast('اختر المحافظة أولاً', true);
+  const amount = num_(document.getElementById('col-amount').value);
+  if (amount <= 0) return toast('أدخل مبلغ تحصيل أكبر من صفر', true);
+  const notes = str_(document.getElementById('col-notes').value);
+  const dtVal = document.getElementById('col-date').value;
+  const when = dtVal ? new Date(dtVal) : new Date();
+  if (isNaN(when.getTime())) return toast('التاريخ غير صالح', true);
+  const ok = await confirmModal(`هل تريد تسجيل تحصيل بقيمة ${amount.toFixed(2)} ج.م من محافظة "${gov}"؟`);
+  if (!ok) return;
+  showL();
+  try {
+    const { error } = await withRetry(() => sb.from('collections_log').insert({
+      governorate: gov, amount, notes: notes || null, collected_at: when.toISOString()
+    }));
+    if (error) throw colErr(error, 'فشل حفظ التحصيل');
+    document.getElementById('col-amount').value = '';
+    document.getElementById('col-notes').value = '';
+    document.getElementById('col-gov').value = '';
+    onColGovChange();
+    toast('تم حفظ التحصيل بنجاح ✓');
+    await searchCollections();
+    hideL();
+  } catch (e) { errH(e); }
+}
+
+function colRangeISO() {
+  const t = document.getElementById('col-f-type').value;
+  if (t === 'day') {
+    const d = document.getElementById('col-f-date').value;
+    if (!d) { toast('اختر التاريخ', true); return null; }
+    const r = dayRangeISO(d);
+    return { startISO: r.startISO, endISO: r.endISO };
+  }
+  if (t === 'month') {
+    const y = parseInt(document.getElementById('col-f-year').value, 10);
+    const m = parseInt(document.getElementById('col-f-month').value, 10);
+    return { startISO: new Date(y, m - 1, 1).toISOString(), endISO: new Date(y, m, 1).toISOString() };
+  }
+  if (t === 'year') {
+    const y = parseInt(document.getElementById('col-f-year').value, 10);
+    return { startISO: new Date(y, 0, 1).toISOString(), endISO: new Date(y + 1, 0, 1).toISOString() };
+  }
+  return {};
+}
+
+async function searchCollections() {
+  const tbody = document.getElementById('col-tbody');
+  const gov = document.getElementById('col-f-gov').value;
+  const range = colRangeISO();
+  if (range === null) return;
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">جاري التحميل...</td></tr>';
+  try {
+    const rows = await fetchAllPaged(() => {
+      let q = sb.from('collections_log').select('*').order('collected_at', { ascending: false }).order('id', { ascending: false });
+      if (gov) q = q.eq('governorate', gov);
+      if (range.startISO) q = q.gte('collected_at', range.startISO).lt('collected_at', range.endISO);
+      return q;
+    });
+    renderCollections(rows, !gov);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">${esc(colErr(e, 'تعذر تحميل التحصيلات').message)}</td></tr>`;
+  }
+}
+
+function renderCollections(rows, showBreakdown) {
+  const total = rows.reduce((a, r) => a + num_(r.amount), 0);
+  document.getElementById('col-total').textContent = total.toFixed(2);
+  document.getElementById('col-count').textContent = rows.length;
+  const bd = document.getElementById('col-by-gov');
+  if (showBreakdown && rows.length) {
+    const byGov = {};
+    rows.forEach(r => { byGov[r.governorate] = (byGov[r.governorate] || 0) + num_(r.amount); });
+    const list = Object.entries(byGov).sort((a, b) => b[1] - a[1]);
+    bd.innerHTML = '<h4>🗺️ الإجمالي لكل محافظة</h4><div style="overflow-x:auto;"><table><thead><tr><th>المحافظة</th><th>إجمالي المحصَّل</th></tr></thead><tbody>' +
+      list.map(([g, v]) => `<tr><td>${esc(g)}</td><td style="color:var(--success)">${v.toFixed(2)}</td></tr>`).join('') + '</tbody></table></div>';
+    bd.style.display = 'block';
+  } else { bd.style.display = 'none'; bd.innerHTML = ''; }
+  document.getElementById('col-tbody').innerHTML = rows.length ? rows.map(r => `<tr>
+    <td>${new Date(r.collected_at).toLocaleString('ar-EG')}</td>
+    <td>${esc(r.governorate)}</td>
+    <td style="color:var(--success); font-weight:bold;">${num_(r.amount).toFixed(2)}</td>
+    <td>${esc(r.notes || '-')}</td>
+    <td><button class="btn-danger" style="width:auto; margin:0; padding:6px 12px; font-size:12px;" onclick="deleteCollection(${Number(r.id)})">🗑️ حذف</button></td>
+  </tr>`).join('') : '<tr><td colspan="5" style="text-align:center">لا توجد تحصيلات في هذه الفترة</td></tr>';
+}
+
+async function deleteCollection(id) {
+  const ok = await confirmModal('هل أنت متأكد من حذف هذا التحصيل؟ لا يمكن استرجاعه بعد الحذف.');
+  if (!ok) return;
+  showL();
+  try {
+    const { error } = await withRetry(() => sb.from('collections_log').delete().eq('id', id));
+    if (error) throw colErr(error, 'فشل حذف التحصيل');
+    toast('تم حذف التحصيل');
+    await searchCollections();
+    hideL();
+  } catch (e) { errH(e); }
+}
+
+async function undoLastCollection() {
+  showL();
+  try {
+    const { data, error } = await withRetry(() => sb.from('collections_log').select('*').order('id', { ascending: false }).limit(1));
+    if (error) throw colErr(error, 'تعذر جلب آخر تحصيل');
+    hideL();
+    const last = data && data[0];
+    if (!last) return toast('لا توجد تحصيلات للتراجع عنها', true);
+    const ok = await confirmModal(`التراجع عن آخر تحصيل تم تسجيله:\n\nالمحافظة: ${last.governorate}\nالمبلغ: ${num_(last.amount).toFixed(2)} ج.م\nالتاريخ: ${new Date(last.collected_at).toLocaleString('ar-EG')}\n\nهل تريد حذفه؟`);
+    if (!ok) return;
+    showL();
+    const { error: dErr } = await withRetry(() => sb.from('collections_log').delete().eq('id', last.id));
+    if (dErr) throw colErr(dErr, 'فشل التراجع عن التحصيل');
+    toast('تم التراجع عن آخر تحصيل');
+    await searchCollections();
+    hideL();
   } catch (e) { errH(e); }
 }
 </script>
